@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SyncWatch — Receiver Setup</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0f0f14;
+      color: #e8e8f0;
+      min-height: 100vh;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+
+    .card {
+      background: #1a1a24;
+      border: 1px solid #2e2e40;
+      border-radius: 16px;
+      padding: 32px;
+      max-width: 480px;
+      width: 100%;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 24px;
+    }
+
+    .logo-icon {
+      width: 36px;
+      height: 36px;
+      background: linear-gradient(135deg, #7c3aed, #a855f7);
+      border-radius: 10px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 16px;
+      flex-shrink: 0;
+    }
+
+    .logo h1 {
+      font-size: 20px;
+      font-weight: 700;
+    }
+
+    .logo p {
+      font-size: 12px;
+      color: #888;
+      margin-top: 2px;
+    }
+
+    h2 {
+      font-size: 13px;
+      font-weight: 600;
+      color: #a78bfa;
+      text-transform: uppercase;
+      letter-spacing: 0.8px;
+      margin-bottom: 16px;
+    }
+
+    label {
+      display: block;
+      font-size: 11px;
+      font-weight: 600;
+      color: #666;
+      text-transform: uppercase;
+      letter-spacing: 0.6px;
+      margin-bottom: 5px;
+      margin-top: 14px;
+    }
+
+    input {
+      width: 100%;
+      padding: 10px 12px;
+      background: #0f0f14;
+      border: 1px solid #2e2e40;
+      border-radius: 8px;
+      color: #e8e8f0;
+      font-size: 13px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    input:focus { border-color: #7c3aed; }
+
+    .divider {
+      border: none;
+      border-top: 1px solid #2e2e40;
+      margin: 24px 0;
+    }
+
+    .bookmarklet-wrap {
+      background: #0f0f14;
+      border: 2px dashed #2e2e40;
+      border-radius: 10px;
+      padding: 20px;
+      text-align: center;
+    }
+
+    .bookmarklet-wrap p {
+      font-size: 12px;
+      color: #888;
+      margin-bottom: 12px;
+      line-height: 1.5;
+    }
+
+    #bookmarkBtn {
+      display: inline-block;
+      padding: 10px 20px;
+      background: linear-gradient(135deg, #7c3aed, #a855f7);
+      color: white;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 700;
+      text-decoration: none;
+      cursor: grab;
+      user-select: none;
+      transition: opacity 0.2s;
+    }
+
+    #bookmarkBtn:hover { opacity: 0.85; }
+
+    .steps {
+      margin-top: 20px;
+      counter-reset: step;
+    }
+
+    .step {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      margin-bottom: 12px;
+      font-size: 13px;
+      color: #aaa;
+      line-height: 1.5;
+    }
+
+    .step-num {
+      width: 22px;
+      height: 22px;
+      background: #2e2e40;
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 11px;
+      font-weight: 700;
+      color: #a78bfa;
+      flex-shrink: 0;
+      margin-top: 1px;
+    }
+
+    .status {
+      margin-top: 16px;
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 12px;
+      display: none;
+    }
+
+    .status.ok  { background: #052e16; color: #4ade80; border: 1px solid #166534; display: block; }
+    .status.err { background: #2d0a0a; color: #f87171; border: 1px solid #7f1d1d; display: block; }
+
+    .generate-btn {
+      width: 100%;
+      margin-top: 16px;
+      padding: 11px;
+      background: linear-gradient(135deg, #7c3aed, #a855f7);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+
+    .generate-btn:hover { opacity: 0.85; }
+  </style>
+</head>
+<body>
+  <div class="card">
+    <div class="logo">
+      <div class="logo-icon">▶</div>
+      <div>
+        <h1>SyncWatch</h1>
+        <p>Receiver setup for iPad / Safari</p>
+      </div>
+    </div>
+
+    <h2>1 — Enter your details</h2>
+
+    <label>Server URL</label>
+    <input id="serverUrl" type="text" placeholder="wss://your-server.railway.app" />
+
+    <label>Room ID</label>
+    <input id="roomId" type="text" placeholder="movie-night" />
+
+    <button class="generate-btn" onclick="generate()">Generate Bookmarklet</button>
+    <div id="status" class="status"></div>
+
+    <hr class="divider" />
+
+    <h2>2 — Install it</h2>
+
+    <div class="bookmarklet-wrap">
+      <p>Drag this button to your Safari bookmarks bar<br/>— or tap it and choose <strong>Add Bookmark</strong></p>
+      <a id="bookmarkBtn" href="#" onclick="return false;">🎬 SyncWatch</a>
+    </div>
+
+    <div class="steps">
+      <div class="step"><div class="step-num">1</div><span>Fill in the Server URL and Room ID above (ask your friend for these)</span></div>
+      <div class="step"><div class="step-num">2</div><span>Tap <strong>Generate Bookmarklet</strong></span></div>
+      <div class="step"><div class="step-num">3</div><span>Drag the purple button to your bookmarks bar — or long-press it and save as a bookmark</span></div>
+      <div class="step"><div class="step-num">4</div><span>Go to the movie website, start playing, then tap the <strong>🎬 SyncWatch</strong> bookmark</span></div>
+      <div class="step"><div class="step-num">5</div><span>A small status badge will appear on screen confirming you're connected</span></div>
+    </div>
+  </div>
+
+  <script>
+    function generate() {
+      const serverUrl = document.getElementById('serverUrl').value.trim();
+      const roomId    = document.getElementById('roomId').value.trim();
+      const status    = document.getElementById('status');
+
+      if (!serverUrl || !roomId) {
+        status.textContent = 'Please fill in both fields.';
+        status.className = 'status err';
+        return;
+      }
+      if (!serverUrl.startsWith('ws://') && !serverUrl.startsWith('wss://')) {
+        status.textContent = 'Server URL must start with ws:// or wss://';
+        status.className = 'status err';
+        return;
+      }
+
+      // Build the bookmarklet code (self-contained, no extension APIs)
+      const code = buildBookmarklet(serverUrl, roomId);
+      document.getElementById('bookmarkBtn').href = 'javascript:' + encodeURIComponent(code);
+
+      status.textContent = '✓ Bookmarklet ready! Drag the purple button to your bookmarks bar.';
+      status.className = 'status ok';
+    }
+
+    function buildBookmarklet(serverUrl, roomId) {
+      // This runs on the movie page when the bookmark is tapped.
+      // It's kept as a single minified function so it survives the bookmarklet format.
+      return `(function(){
+  if(window.__syncwatch){window.__syncwatch.destroy();return;}
+  var SERVER='${serverUrl}',ROOM='${roomId}';
+  var ws,isSyncing=false,retryTimer=null;
+
+  // ── UI badge ──────────────────────────────────────────────────────────────
+  var badge=document.createElement('div');
+  badge.id='__sw_badge';
+  Object.assign(badge.style,{
+    position:'fixed',top:'12px',right:'12px',zIndex:'2147483647',
+    padding:'6px 12px',borderRadius:'20px',fontSize:'12px',fontWeight:'700',
+    fontFamily:'-apple-system,sans-serif',cursor:'pointer',
+    background:'#7c3aed',color:'#fff',boxShadow:'0 2px 12px rgba(0,0,0,.4)',
+    transition:'background .3s'
+  });
+  badge.title='Tap to disconnect SyncWatch';
+  badge.onclick=function(){window.__syncwatch.destroy();};
+  document.body.appendChild(badge);
+
+  function setStatus(text,color){badge.textContent='🎬 '+text;badge.style.background=color||'#7c3aed';}
+  setStatus('Connecting…','#92400e');
+
+  // ── Find video ────────────────────────────────────────────────────────────
+  function findVideo(){return document.querySelector('video');}
+
+  // ── Apply remote event ────────────────────────────────────────────────────
+  function applyEvent(data){
+    var v=findVideo();
+    if(!v)return;
+    isSyncing=true;
+    var THRESH=2;
+    if(data.type==='play'){
+      if(Math.abs(v.currentTime-data.currentTime)>THRESH)v.currentTime=data.currentTime;
+      v.play().catch(function(){});
+    }else if(data.type==='pause'){
+      if(Math.abs(v.currentTime-data.currentTime)>THRESH)v.currentTime=data.currentTime;
+      v.pause();
+    }else if(data.type==='seek'){
+      v.currentTime=data.currentTime;
+    }
+    setTimeout(function(){isSyncing=false;},600);
+  }
+
+  // ── WebSocket ─────────────────────────────────────────────────────────────
+  function connect(){
+    try{ws=new WebSocket(SERVER);}catch(e){setStatus('Bad URL','#dc2626');return;}
+    ws.onopen=function(){
+      ws.send(JSON.stringify({type:'join',room:ROOM,role:'receiver'}));
+      setStatus('Connected ✓','#065f46');
+    };
+    ws.onmessage=function(e){
+      try{applyEvent(JSON.parse(e.data));}catch(ex){}
+    };
+    ws.onclose=function(){
+      setStatus('Reconnecting…','#92400e');
+      retryTimer=setTimeout(connect,3000);
+    };
+    ws.onerror=function(){ws.close();};
+  }
+  connect();
+
+  // ── Cleanup ───────────────────────────────────────────────────────────────
+  window.__syncwatch={
+    destroy:function(){
+      clearTimeout(retryTimer);
+      if(ws)ws.close();
+      var b=document.getElementById('__sw_badge');
+      if(b)b.remove();
+      delete window.__syncwatch;
+    }
+  };
+})()`;
+    }
+  </script>
+</body>
+</html>
