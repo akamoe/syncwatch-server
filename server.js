@@ -55,7 +55,7 @@ wss.on('connection', (ws, req) => {
     if (clientRole !== 'controller') return;
 
     for (const client of rooms[currentRoom]) {
-      if (client !== ws && client.readyState === WebSocket.OPEN) {
+      if (client !== ws && client.readyState === 1) {
         client.send(JSON.stringify(data));
       }
     }
