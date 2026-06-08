@@ -223,9 +223,7 @@
 
     <div id="configuredMsg" class="configured">✓ Configured for room <span id="configuredRoom"></span></div>
 
-    <a id="openVideoBtn" class="generate-btn" style="display:none;text-decoration:none;text-align:center;margin-top:16px" target="_blank">Open Shared Video</a>
-
-    <div class="footer-note">Your friend controls playback. You just watch — it follows along automatically.</div>
+    <div class="footer-note" style="margin-top:16px">Your friend controls playback. You just watch — it follows along automatically.</div>
   </div>
 
   <script>
@@ -238,6 +236,8 @@
     }
 
     (function init() {
+      var urlParam = params.get(\'url\');
+
       if (room && server) {
         localStorage.setItem(\'syncwatch\', JSON.stringify({ r: room, u: server }));
         document.getElementById(\'roomDisplay\').textContent = room;
@@ -247,19 +247,19 @@
         var existing = JSON.parse(localStorage.getItem(\'syncwatch\') || \'null\');
         if (existing) {
           document.getElementById(\'roomDisplay\').textContent = existing.r;
-        } else {
-          document.getElementById(\'roomDisplay\').textContent = \'No room configured\';
         }
-      }
-      var urlParam = params.get(\'url\');
-      if (urlParam) {
-        var btn = document.getElementById(\'openVideoBtn\');
-        btn.href = urlParam;
-        btn.style.display = \'block\';
-        btn.textContent = \'Open the shared video\';
       }
 
       document.getElementById(\'bookmarkBtn\').href = \'javascript:\' + encodeURIComponent(buildBookmarklet() + \',void(0)\');
+
+      if (urlParam) {
+        var sec = 6;
+        var el = document.createElement(\'p\');
+        el.style.cssText = \'margin-top:16px;font-size:12px;color:#888;text-align:center;line-height:1.5\';
+        el.innerHTML = \'Redirecting to video in <strong id="countdown">\'+sec+\'</strong>s…<br><a href="\'+urlParam+\'" style="color:#a78bfa;font-size:11px;text-decoration:underline">Continue now</a>\';
+        document.querySelector(\'.card\').appendChild(el);
+        var timer = setInterval(function(){sec--;var cd=document.getElementById(\'countdown\');if(cd)cd.textContent=sec;if(sec<=0){clearInterval(timer);window.location.href=urlParam;}},1000);
+      }
     })();
   </script>
 </body>
