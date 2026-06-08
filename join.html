@@ -171,10 +171,26 @@
       margin: 24px 0;
     }
 
+    .generate-btn {
+      display: block;
+      padding: 11px;
+      background: linear-gradient(135deg, #7c3aed, #a855f7);
+      color: white;
+      border: none;
+      border-radius: 8px;
+      font-size: 14px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+
+    .generate-btn:hover { opacity: 0.85; }
+
     .footer-note {
       font-size: 11px;
       color: #555;
       text-align: center;
+      margin-top: 16px;
       line-height: 1.5;
     }
   </style>
@@ -207,6 +223,8 @@
 
     <div id="configuredMsg" class="configured">✓ Configured for room <span id="configuredRoom"></span></div>
 
+    <a id="openVideoBtn" class="generate-btn" style="display:none;text-decoration:none;text-align:center;margin-top:16px" target="_blank">Open Shared Video</a>
+
     <div class="footer-note">Your friend controls playback. You just watch — it follows along automatically.</div>
   </div>
 
@@ -233,7 +251,15 @@
           document.getElementById(\'roomDisplay\').textContent = \'No room configured\';
         }
       }
-      document.getElementById(\'bookmarkBtn\').href = \'javascript:\' + encodeURIComponent(buildBookmarklet());
+      var urlParam = params.get(\'url\');
+      if (urlParam) {
+        var btn = document.getElementById(\'openVideoBtn\');
+        btn.href = urlParam;
+        btn.style.display = \'block\';
+        btn.textContent = \'Open the shared video\';
+      }
+
+      document.getElementById(\'bookmarkBtn\').href = \'javascript:\' + encodeURIComponent(buildBookmarklet() + \',void(0)\');
     })();
   </script>
 </body>

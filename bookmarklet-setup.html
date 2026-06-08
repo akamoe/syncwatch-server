@@ -244,7 +244,7 @@
 
       // Build the bookmarklet code (self-contained, no extension APIs)
       const code = buildBookmarklet(serverUrl, roomId);
-      document.getElementById('bookmarkBtn').href = 'javascript:' + encodeURIComponent(code);
+      document.getElementById('bookmarkBtn').href = 'javascript:' + encodeURIComponent(code + ',void(0)');
 
       status.textContent = '✓ Bookmarklet ready! Drag the purple button to your bookmarks bar.';
       status.className = 'status ok';
