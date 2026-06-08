@@ -53,7 +53,30 @@ chrome.runtime.onMessage.addListener((msg) => {
 // ─── Find the video element (handles late-loading SPAs) ───────────────────────
 
 function findVideo() {
-  return document.querySelector('video');
+  let best = null;
+  let bestArea = 0;
+  for (const v of document.querySelectorAll('video')) {
+    const r = v.getBoundingClientRect();
+    const area = r.width * r.height;
+    if (area > bestArea && r.width > 50 && r.height > 50) {
+      best = v;
+      bestArea = area;
+    }
+  }
+  if (best) return best;
+  for (const el of document.querySelectorAll('*')) {
+    const sr = el.shadowRoot;
+    if (!sr) continue;
+    for (const v of sr.querySelectorAll('video')) {
+      const r = v.getBoundingClientRect();
+      const area = r.width * r.height;
+      if (area > bestArea && r.width > 50 && r.height > 50) {
+        best = v;
+        bestArea = area;
+      }
+    }
+  }
+  return best;
 }
 
 function waitForVideo(cb) {

@@ -178,9 +178,22 @@ function forwardToVideoTab(msg) {
 }
 
 function requestSyncState() {
-  if (!videoTabId) return;
-  chrome.tabs.sendMessage(videoTabId, { type: 'sync-request' }).catch(() => {
-    videoTabId = null;
+  const send = (tabId) => {
+    chrome.tabs.sendMessage(tabId, { type: 'sync-request' }).catch(() => {
+      if (tabId === videoTabId) videoTabId = null;
+    });
+  };
+
+  if (videoTabId) {
+    send(videoTabId);
+    return;
+  }
+
+  chrome.tabs.query({ active: true, lastFocusedWindow: true }, (tabs) => {
+    if (tabs[0]?.id) {
+      videoTabId = tabs[0].id;
+      send(videoTabId);
+    }
   });
 }
 
