@@ -251,84 +251,96 @@
     }
 
     function buildBookmarklet(serverUrl, roomId) {
-      // This runs on the movie page when the bookmark is tapped.
-      // It's kept as a single minified function so it survives the bookmarklet format.
       return `(function(){
   if(window.__syncwatch){window.__syncwatch.destroy();return;}
   var SERVER='${serverUrl}',ROOM='${roomId}';
-  var ws,isSyncing=false,retryTimer=null,roomCount=0;
+  var ws,isSync=false,retry=null,rc=0,ctrlPlaying=false;
 
   // ── UI badge ──────────────────────────────────────────────────────────────
-  var badge=document.createElement('div');
-  badge.id='__sw_badge';
-  Object.assign(badge.style,{
+  var b=document.createElement('div');
+  b.id='__sw_badge';
+  Object.assign(b.style,{
     position:'fixed',top:'12px',right:'12px',zIndex:'2147483647',
     padding:'6px 12px',borderRadius:'20px',fontSize:'12px',fontWeight:'700',
     fontFamily:'-apple-system,sans-serif',cursor:'pointer',
     background:'#7c3aed',color:'#fff',boxShadow:'0 2px 12px rgba(0,0,0,.4)',
     transition:'background .3s'
   });
-  badge.title='Tap to disconnect SyncWatch';
-  badge.onclick=function(){window.__syncwatch.destroy();};
-  document.body.appendChild(badge);
+  b.title='Tap to re-sync';
+  b.onclick=function(){
+    if(!ws||ws.readyState!==1)return;
+    st('Syncing…','#7c3aed');
+    ws.send(JSON.stringify({type:'sync-request',room:ROOM}));
+  };
+  document.body.appendChild(b);
 
-  function setStatus(text,color){badge.textContent='🎬 '+text;badge.style.background=color||'#7c3aed';}
-  function updateBadge(){
-    if(roomCount>0)setStatus(roomCount+' in room','#065f46');
-    else setStatus('Connected ✓','#065f46');
+  function st(t,c){b.textContent='🎬 '+t;b.style.background=c||'#7c3aed';}
+  function ub(){
+    var icon=ctrlPlaying?'▶ ':'⏸ ';
+    st(icon+(rc>1?rc+' in room':'OK'),'#065f46');
   }
-  setStatus('Connecting…','#92400e');
+  st('Connecting…','#92400e');
 
   // ── Find video ────────────────────────────────────────────────────────────
-  function findVideo(){return document.querySelector('video');}
+  function fv(){return document.querySelector('video');}
 
   // ── Apply remote event ────────────────────────────────────────────────────
-  function applyEvent(data){
-    var v=findVideo();
+  function ae(d){
+    var v=fv();
     if(!v)return;
-    isSyncing=true;
-    var THRESH=2;
-    if(data.type==='play'){
-      if(Math.abs(v.currentTime-data.currentTime)>THRESH)v.currentTime=data.currentTime;
+    isSync=true;
+    if(d.type==='play'){
+      ctrlPlaying=true;
+      if(Math.abs(v.currentTime-d.currentTime)>2)v.currentTime=d.currentTime;
       v.play().catch(function(){});
-    }else if(data.type==='pause'){
-      if(Math.abs(v.currentTime-data.currentTime)>THRESH)v.currentTime=data.currentTime;
+    }else if(d.type==='pause'){
+      ctrlPlaying=false;
+      if(Math.abs(v.currentTime-d.currentTime)>2)v.currentTime=d.currentTime;
       v.pause();
-    }else if(data.type==='seek'){
-      v.currentTime=data.currentTime;
+    }else if(d.type==='seek'){
+      v.currentTime=d.currentTime;
     }
-    setTimeout(function(){isSyncing=false;},600);
+    ub();
+    setTimeout(function(){isSync=false;},600);
   }
 
   // ── WebSocket ─────────────────────────────────────────────────────────────
-  function connect(){
-    try{ws=new WebSocket(SERVER);}catch(e){setStatus('Bad URL','#dc2626');return;}
+  function cn(){
+    try{ws=new WebSocket(SERVER);}catch(e){st('Bad URL','#dc2626');return;}
     ws.onopen=function(){
+      retry=null;
       ws.send(JSON.stringify({type:'join',room:ROOM,role:'receiver'}));
-      setStatus('Connected ✓','#065f46');
+      ub();
     };
     ws.onmessage=function(e){
       try{
         var d=JSON.parse(e.data);
-        if(d.type==='room-info'){roomCount=d.count;updateBadge();return;}
-        applyEvent(d);
+        if(d.type==='room-info'){rc=d.count;ub();return;}
+        if(d.type==='sync-state'){
+          ctrlPlaying=d.playing;
+          var v=fv();
+          if(v){isSync=true;v.currentTime=d.currentTime;if(d.playing)v.play().catch(function(){});else v.pause();setTimeout(function(){isSync=false;},600);}
+          ub();
+          return;
+        }
+        ae(d);
       }catch(ex){}
     };
     ws.onclose=function(){
-      setStatus('Reconnecting…','#92400e');
-      retryTimer=setTimeout(connect,3000);
+      st(retry?'Server waking…':'Reconnecting…','#92400e');
+      retry=setTimeout(cn,3000);
     };
     ws.onerror=function(){ws.close();};
   }
-  connect();
+  cn();
 
   // ── Cleanup ───────────────────────────────────────────────────────────────
   window.__syncwatch={
     destroy:function(){
-      clearTimeout(retryTimer);
+      clearTimeout(retry);
       if(ws)ws.close();
-      var b=document.getElementById('__sw_badge');
-      if(b)b.remove();
+      var e=document.getElementById('__sw_badge');
+      if(e)e.remove();
       delete window.__syncwatch;
     }
   };

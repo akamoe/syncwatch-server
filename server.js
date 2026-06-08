@@ -66,6 +66,16 @@ wss.on('connection', (ws, req) => {
     }
 
     if (!currentRoom || !rooms[currentRoom]) return;
+
+    if (data.type === 'sync-request') {
+      for (const client of rooms[currentRoom]) {
+        if (client.role === 'controller' && client.readyState === 1) {
+          client.send(JSON.stringify(data));
+        }
+      }
+      return;
+    }
+
     if (ws.role !== 'controller') return;
 
     for (const client of rooms[currentRoom]) {
