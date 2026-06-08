@@ -1,10 +1,10 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="ar" dir="rtl">
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <meta name="referrer" content="no-referrer-when-downgrade" />
-  <title>SyncWatch — Join</title>
+  <title>SyncWatch — انضمام للبث المشترك</title>
   <style>
     * { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -204,42 +204,43 @@
     </div>
 
     <div class="invite">
-      <h2>You've been invited!</h2>
-      <p>Someone wants to watch a video together. Once you set this up, their playback will sync to your iPad automatically.</p>
+      <h2>لقد تم دعوتك لمشاهدة فيديو!</h2>
+      <p>يريد أحد أصدقائك مشاهدة فيلم أو فيديو معك بمزامنة تشغيل كاملة ومباشرة على جهازك الآيباد.</p>
       <div class="room-name" id="roomDisplay">—</div>
     </div>
 
     <div id="setupSection">
-      <h2>One-time setup</h2>
+      <h2>إعداد الأداة (لمرة واحدة فقط)</h2>
 
       <div class="bookmarklet-wrap">
-        <p>Drag this button to your bookmarks bar<br/>— or tap it and choose <strong>Add Bookmark</strong></p>
+        <p>اضغط مطولاً على هذا الزر واختر <strong>نسخ الرابط (Copy Link)</strong></p>
         <a id="bookmarkBtn" href="#" onclick="return false;">🎬 SyncWatch</a>
       </div>
 
       <div class="steps">
-        <div class="step"><div class="step-num">1</div><span>Drag the purple button above to your bookmarks bar (this is a one-time step)</span></div>
-        <div class="step"><div class="step-num">2</div><span>Open any video or movie website in Safari</span></div>
-        <div class="step"><div class="step-num">3</div><span>Tap the <strong>🎬 SyncWatch</strong> bookmark — a purple badge will appear confirming you're connected</span></div>
+        <div class="step"><div class="step-num">1</div><span>اضغط مطولاً على زر <strong>🎬 SyncWatch</strong> البنفسجي بالأعلى، ثم اختر <strong>نسخ الرابط (Copy Link)</strong>.</span></div>
+        <div class="step"><div class="step-num">2</div><span>اضغط على زر <strong>المشاركة (Share)</strong> في متصفح سفاري بالآيباد، ثم اختر <strong>إضافة مفضلة (Add Bookmark)</strong>، سمِّها <strong>🎬 SyncWatch</strong> ثم احفظها.</span></div>
+        <div class="step"><div class="step-num">3</div><span>افتح قائمة العلامات المفضلة (Bookmarks) في سفاري، اضغط على <strong>تعديل (Edit)</strong>، ثم حدد المفضلة التي حفظتها للتو، وامسح رابط العنوان المكتوب وضع مكانه الكود الذي نسخته (قم بعمل <strong>لصق / Paste</strong>) ثم احفظ التغييرات.</span></div>
+        <div class="step"><div class="step-num">4</div><span>عندما تفتح أي فيلم أو فيديو (على يوتيوب، نتفلكس، إلخ)، اضغط على علامة المفضلة <strong>🎬 SyncWatch</strong> التي قمت بتعديلها لتظهر أيقونة الاتصال البنفسجية ويبدأ البث المشترك!</span></div>
       </div>
 
-      <div id="configuredMsg" class="configured">✓ Configured for room <span id="configuredRoom"></span></div>
+      <div id="configuredMsg" class="configured">✓ تم ضبط الاتصال للغرفة <span id="configuredRoom"></span></div>
 
-      <div class="footer-note" style="margin-top:16px">Your friend controls playback. You just watch — it follows along automatically.</div>
+      <div class="footer-note" style="margin-top:16px">صديقك هو من يتحكم بالتشغيل والتقديم والتأخير. أنت فقط تشاهد وسيتزامن الفيديو الخاص بك تلقائياً.</div>
     </div>
 
     <div id="redirectContainer" style="display: none; text-align: center; margin-top: 8px;">
       <div style="background: #0f0f14; border: 1px solid #2e2e40; padding: 20px; border-radius: 10px; margin-bottom: 16px;">
         <p style="font-size: 15px; color: #a78bfa; margin-bottom: 8px; font-weight: 700;">
-          Redirecting in <span id="countdown">6</span>s…
+          جاري تحويلك لصفحة الفيديو خلال <span id="countdown">6</span> ثوانٍ…
         </p>
         <p style="font-size: 12px; color: #aaa; margin-bottom: 16px; line-height: 1.6;">
-          Once the movie loads, tap your saved <strong>🎬 SyncWatch</strong> bookmark to start syncing.
+          بمجرد فتح صفحة الفيديو، اضغط على علامة المفضلة <strong>🎬 SyncWatch</strong> المحفوظة لديك لبدء المزامنة والتشغيل المشترك.
         </p>
-        <a id="redirectLink" href="#" style="display: inline-block; padding: 8px 16px; background: linear-gradient(135deg, #7c3aed, #a855f7); color: white; border-radius: 6px; font-size: 12px; font-weight: 600; text-decoration: none;">Continue now</a>
+        <a id="redirectLink" href="#" style="display: inline-block; padding: 8px 16px; background: linear-gradient(135deg, #7c3aed, #a855f7); color: white; border-radius: 6px; font-size: 12px; font-weight: 600; text-decoration: none;">الانتقال الآن</a>
       </div>
       <p style="font-size: 11px; color: #666;">
-        First time using SyncWatch? <a id="setupLink" href="#" style="color: #a78bfa; text-decoration: underline;">Install bookmarklet first</a>
+        أول مرة تستخدم الأداة؟ <a id="setupLink" href="#" style="color: #a78bfa; text-decoration: underline;">اضغط هنا لتثبيت زر المزامنة أولاً</a>
       </p>
     </div>
   </div>
