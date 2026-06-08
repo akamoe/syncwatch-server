@@ -8,18 +8,24 @@ const path = require('path');
 
 const PORT = process.env.PORT || 3000;
 
-// ── HTTP server (serves bookmarklet-setup.html at /) ─────────────────────────
+// ── HTTP server ──────────────────────────────────────────────────────────────
+const MIME = { '.html': 'text/html', '.css': 'text/css', '.js': 'application/javascript' };
+
 const httpServer = http.createServer((req, res) => {
-  const filePath = path.join(__dirname, 'bookmarklet-setup.html');
-  fs.readFile(filePath, (err, data) => {
-    if (err) {
-      res.writeHead(404);
-      res.end('Not found');
-      return;
-    }
-    res.writeHead(200, { 'Content-Type': 'text/html' });
-    res.end(data);
-  });
+  const serve = (file) => {
+    const ext = path.extname(file) || '.html';
+    fs.readFile(file, (err, data) => {
+      if (err) { res.writeHead(404); res.end('Not found'); return; }
+      res.writeHead(200, { 'Content-Type': MIME[ext] || 'text/plain' });
+      res.end(data);
+    });
+  };
+
+  if (req.url.startsWith('/join')) {
+    serve(path.join(__dirname, 'join.html'));
+  } else {
+    serve(path.join(__dirname, 'bookmarklet-setup.html'));
+  }
 });
 
 // ── WebSocket server (attaches to the same HTTP server) ──────────────────────
