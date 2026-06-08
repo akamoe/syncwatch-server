@@ -21,7 +21,11 @@ const httpServer = http.createServer((req, res) => {
     });
   };
 
-  if (req.url.startsWith('/join')) {
+  const urlPath = req.url.split('?')[0];
+
+  if (urlPath === '/bookmarklet.js') {
+    serve(path.join(__dirname, 'bookmarklet.js'));
+  } else if (urlPath.startsWith('/join')) {
     serve(path.join(__dirname, 'join.html'));
   } else {
     serve(path.join(__dirname, 'bookmarklet-setup.html'));
