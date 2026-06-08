@@ -209,22 +209,39 @@
       <div class="room-name" id="roomDisplay">—</div>
     </div>
 
-    <h2>One-time setup</h2>
+    <div id="setupSection">
+      <h2>One-time setup</h2>
 
-    <div class="bookmarklet-wrap">
-      <p>Drag this button to your bookmarks bar<br/>— or tap it and choose <strong>Add Bookmark</strong></p>
-      <a id="bookmarkBtn" href="#" onclick="return false;">🎬 SyncWatch</a>
+      <div class="bookmarklet-wrap">
+        <p>Drag this button to your bookmarks bar<br/>— or tap it and choose <strong>Add Bookmark</strong></p>
+        <a id="bookmarkBtn" href="#" onclick="return false;">🎬 SyncWatch</a>
+      </div>
+
+      <div class="steps">
+        <div class="step"><div class="step-num">1</div><span>Drag the purple button above to your bookmarks bar (this is a one-time step)</span></div>
+        <div class="step"><div class="step-num">2</div><span>Open any video or movie website in Safari</span></div>
+        <div class="step"><div class="step-num">3</div><span>Tap the <strong>🎬 SyncWatch</strong> bookmark — a purple badge will appear confirming you're connected</span></div>
+      </div>
+
+      <div id="configuredMsg" class="configured">✓ Configured for room <span id="configuredRoom"></span></div>
+
+      <div class="footer-note" style="margin-top:16px">Your friend controls playback. You just watch — it follows along automatically.</div>
     </div>
 
-    <div class="steps">
-      <div class="step"><div class="step-num">1</div><span>Drag the purple button above to your bookmarks bar (this is a one-time step)</span></div>
-      <div class="step"><div class="step-num">2</div><span>Open any video or movie website in Safari</span></div>
-      <div class="step"><div class="step-num">3</div><span>Tap the <strong>🎬 SyncWatch</strong> bookmark — a purple badge will appear confirming you're connected</span></div>
+    <div id="redirectContainer" style="display: none; text-align: center; margin-top: 8px;">
+      <div style="background: #0f0f14; border: 1px solid #2e2e40; padding: 20px; border-radius: 10px; margin-bottom: 16px;">
+        <p style="font-size: 15px; color: #a78bfa; margin-bottom: 8px; font-weight: 700;">
+          Redirecting in <span id="countdown">6</span>s…
+        </p>
+        <p style="font-size: 12px; color: #aaa; margin-bottom: 16px; line-height: 1.6;">
+          Once the movie loads, tap your saved <strong>🎬 SyncWatch</strong> bookmark to start syncing.
+        </p>
+        <a id="redirectLink" href="#" style="display: inline-block; padding: 8px 16px; background: linear-gradient(135deg, #7c3aed, #a855f7); color: white; border-radius: 6px; font-size: 12px; font-weight: 600; text-decoration: none;">Continue now</a>
+      </div>
+      <p style="font-size: 11px; color: #666;">
+        First time using SyncWatch? <a id="setupLink" href="#" style="color: #a78bfa; text-decoration: underline;">Install bookmarklet first</a>
+      </p>
     </div>
-
-    <div id="configuredMsg" class="configured">✓ Configured for room <span id="configuredRoom"></span></div>
-
-    <div class="footer-note" style="margin-top:16px">Your friend controls playback. You just watch — it follows along automatically.</div>
   </div>
 
   <script>
@@ -268,26 +285,13 @@
         } catch (e) {}
 
         if (isValidUrl) {
+          document.getElementById('setupSection').style.display = 'none';
+          document.getElementById('redirectContainer').style.display = 'block';
+
+          document.getElementById('redirectLink').href = urlParam;
+          document.getElementById('setupLink').href = '?room=' + encodeURIComponent(room || '') + '&server=' + encodeURIComponent(server || '');
+
           var sec = 6;
-          var el = document.createElement('p');
-          el.style.cssText = 'margin-top:16px;font-size:12px;color:#888;text-align:center;line-height:1.5';
-          
-          el.appendChild(document.createTextNode('Redirecting to video in '));
-          var strong = document.createElement('strong');
-          strong.id = 'countdown';
-          strong.textContent = sec;
-          el.appendChild(strong);
-          el.appendChild(document.createTextNode('s…'));
-          el.appendChild(document.createElement('br'));
-          
-          var a = document.createElement('a');
-          a.href = urlParam;
-          a.style.cssText = 'color:#a78bfa;font-size:11px;text-decoration:underline';
-          a.textContent = 'Continue now';
-          el.appendChild(a);
-          
-          document.querySelector('.card').appendChild(el);
-          
           var timer = setInterval(function(){
             sec--;
             var cd = document.getElementById('countdown');
