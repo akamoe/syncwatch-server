@@ -1,0 +1,235 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SyncWatch</title>
+  <style>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+      background: #0f0f14;
+      color: #e8e8f0;
+      width: 260px;
+      padding: 16px;
+    }
+
+    .logo {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 16px;
+    }
+
+    .logo-icon {
+      width: 28px;
+      height: 28px;
+      background: linear-gradient(135deg, #7c3aed, #a855f7);
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+    }
+
+    .logo h1 {
+      font-size: 15px;
+      font-weight: 700;
+      letter-spacing: 0.3px;
+    }
+
+    label {
+      display: block;
+      font-size: 10px;
+      font-weight: 600;
+      letter-spacing: 0.8px;
+      text-transform: uppercase;
+      color: #888;
+      margin-bottom: 4px;
+      margin-top: 12px;
+    }
+
+    input, select {
+      width: 100%;
+      padding: 8px 10px;
+      background: #1c1c26;
+      border: 1px solid #2e2e40;
+      border-radius: 6px;
+      color: #e8e8f0;
+      font-size: 12px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+
+    input:focus, select:focus {
+      border-color: #7c3aed;
+    }
+
+    select option {
+      background: #1c1c26;
+    }
+
+    .role-note {
+      font-size: 10px;
+      color: #666;
+      margin-top: 4px;
+      line-height: 1.4;
+    }
+
+    button {
+      width: 100%;
+      margin-top: 14px;
+      padding: 9px;
+      background: linear-gradient(135deg, #7c3aed, #a855f7);
+      color: white;
+      border: none;
+      border-radius: 6px;
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+
+    button:hover { opacity: 0.88; }
+
+    #status {
+      margin-top: 10px;
+      font-size: 11px;
+      text-align: center;
+      min-height: 16px;
+      transition: color 0.2s;
+    }
+
+    #status.ok  { color: #4ade80; }
+    #status.err { color: #f87171; }
+
+    .divider {
+      border: none;
+      border-top: 1px solid #2e2e40;
+      margin: 14px 0 0;
+    }
+
+    .conn-panel {
+      margin-top: 12px;
+      padding: 10px 12px;
+      background: #1c1c26;
+      border-radius: 8px;
+      border: 1px solid #2e2e40;
+    }
+
+    .conn-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+
+    .dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      flex-shrink: 0;
+    }
+
+    .dot.green { background: #4ade80; }
+    .dot.gray  { background: #555; }
+    .dot.red   { background: #dc2626; }
+
+    .conn-detail {
+      font-size: 11px;
+      color: #888;
+      margin-top: 4px;
+      margin-left: 16px;
+    }
+
+    .action-row {
+      display: flex;
+      gap: 8px;
+      margin-top: 10px;
+    }
+
+    .action-btn {
+      flex: 1;
+      padding: 6px;
+      border-radius: 5px;
+      font-size: 10px;
+      font-weight: 600;
+      cursor: pointer;
+      border: 1px solid #2e2e40;
+      background: #1c1c26;
+      color: #888;
+      transition: border-color 0.2s, color 0.2s;
+    }
+
+    .action-btn.danger:hover { border-color: #dc2626; color: #f87171; }
+
+    .share-btn {
+      margin-top: 12px;
+      padding: 8px;
+      background: #1c1c26;
+      border: 1px solid #2e2e40;
+      border-radius: 6px;
+      color: #a78bfa;
+      font-size: 11px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: border-color 0.2s;
+    }
+
+    .share-btn:hover { border-color: #7c3aed; }
+    .share-btn.copied { border-color: #4ade80; color: #4ade80; }
+
+    .hint {
+      font-size: 10px;
+      color: #555;
+      margin-top: 10px;
+      line-height: 1.5;
+    }
+  </style>
+</head>
+<body>
+  <div class="logo">
+    <div class="logo-icon">▶</div>
+    <h1>SyncWatch</h1>
+  </div>
+
+  <label>Server URL</label>
+  <input id="serverUrl" type="text" placeholder="ws://your-server:3000" />
+
+  <label>Room ID</label>
+  <input id="roomId" type="text" placeholder="e.g. movie-night-2024" />
+
+  <label>My Role</label>
+  <select id="role">
+    <option value="controller">Controller (Mac — I control playback)</option>
+    <option value="receiver">Receiver (iPad — I follow along)</option>
+  </select>
+  <p class="role-note">Set to <strong>Controller</strong> on your Mac. Set to <strong>Receiver</strong> on your friend's iPad.</p>
+
+  <button id="saveBtn">Save &amp; Connect</button>
+  <div id="status"></div>
+
+  <div id="connPanel" class="conn-panel" style="display:none">
+    <div class="conn-row">
+      <span id="connDot" class="dot"></span>
+      <span id="connText">Disconnected</span>
+    </div>
+    <div class="conn-detail" id="connRoom"></div>
+    <div class="conn-detail" id="connClients"></div>
+    <div class="action-row" id="actionRow">
+      <button id="resetBtn" class="action-btn danger">Reset Room</button>
+      <button id="kickBtn" class="action-btn danger">Kick All</button>
+    </div>
+  </div>
+
+  <button id="shareBtn" class="share-btn">Share Invite</button>
+  <button id="shareSetupBtn" class="share-btn" style="margin-top: 8px;">Share Setup Link</button>
+
+  <hr class="divider" />
+  <p class="hint">Changes apply automatically — no need to reload the tab.</p>
+
+  <script src="popup.js"></script>
+</body>
+</html>
