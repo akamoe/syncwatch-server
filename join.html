@@ -123,6 +123,37 @@
 
     #bookmarkBtn:hover { opacity: 0.85; }
 
+    .copy-btn {
+      display: block;
+      width: 100%;
+      margin-top: 12px;
+      padding: 9px;
+      background: #1a1a24;
+      border: 1px solid #3a3a50;
+      border-radius: 8px;
+      color: #a78bfa;
+      font-size: 12px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: border-color 0.2s, color 0.2s;
+    }
+    .copy-btn:hover { border-color: #7c3aed; }
+    .copy-btn.copied { border-color: #4ade80; color: #4ade80; }
+
+    .manual-hint {
+      margin-top: 10px;
+      padding: 10px 12px;
+      background: #0f0f14;
+      border: 1px solid #2e2e40;
+      border-radius: 8px;
+      font-size: 11px;
+      color: #888;
+      line-height: 1.6;
+      display: none;
+    }
+    .manual-hint.show { display: block; }
+    .manual-hint strong { color: #a78bfa; }
+
     .steps {
       margin-top: 20px;
       counter-reset: step;
@@ -213,8 +244,14 @@
       <h2>إعداد الأداة (لمرة واحدة فقط)</h2>
 
       <div class="bookmarklet-wrap">
-        <p>قم بسحب هذا الزر البنفسجي وإفلاته في شريط العلامات المفضلة (الذي يحتوي على أيقونة الكتاب) في متصفحك</p>
+        <p>اسحب هذا الزر البنفسجي وأفلته في شريط العلامات المفضلة في متصفحك</p>
         <a id="bookmarkBtn" href="#" onclick="return false;">🎬 SyncWatch</a>
+        <button class="copy-btn" id="copyBtn" onclick="copyBookmarklet()">📋 نسخ الرابط يدوياً (بديل السحب)</button>
+        <div class="manual-hint" id="manualHint">
+          ✅ تم النسخ! الآن:<br>
+          <strong>Chrome/Brave:</strong> افتح المفضلة ← أضف إشارة مرجعية ← الصق الرابط في حقل الـ URL<br>
+          <strong>Safari:</strong> اضغط على أيقونة المشاركة ← أضف إلى المفضلة ← ثم عدّل الرابط والصق الكود
+        </div>
       </div>
 
       <div class="steps">
@@ -249,6 +286,27 @@
     var params = new URLSearchParams(location.search);
     var room   = params.get('room');
     var server = params.get('server');
+
+    function copyBookmarklet() {
+      var btn = document.getElementById('copyBtn');
+      var hint = document.getElementById('manualHint');
+      var href = document.getElementById('bookmarkBtn').href;
+      if (!href || href === location.href || href.indexOf('javascript:') === -1) {
+        btn.textContent = '⚠️ احفظ الإعداد أولاً';
+        return;
+      }
+      navigator.clipboard.writeText(href).then(function() {
+        btn.textContent = '✅ تم النسخ!';
+        btn.classList.add('copied');
+        hint.classList.add('show');
+        setTimeout(function() {
+          btn.textContent = '📋 نسخ الرابط يدوياً (بديل السحب)';
+          btn.classList.remove('copied');
+        }, 4000);
+      }).catch(function() {
+        btn.textContent = '⚠️ لم يتم النسخ — جرب السحب';
+      });
+    }
 
     (function init() {
       var urlParam = params.get('url');
