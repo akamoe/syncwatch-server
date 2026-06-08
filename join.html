@@ -154,10 +154,7 @@
     .manual-hint.show { display: block; }
     .manual-hint strong { color: #a78bfa; }
 
-    .steps {
-      margin-top: 20px;
-      counter-reset: step;
-    }
+    .steps { margin-top: 20px; }
 
     .step {
       display: flex;
@@ -170,18 +167,12 @@
     }
 
     .step-num {
-      width: 22px;
-      height: 22px;
+      width: 22px; height: 22px;
       background: #2e2e40;
       border-radius: 50%;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      font-size: 11px;
-      font-weight: 700;
-      color: #a78bfa;
-      flex-shrink: 0;
-      margin-top: 1px;
+      display: flex; align-items: center; justify-content: center;
+      font-size: 11px; font-weight: 700;
+      color: #a78bfa; flex-shrink: 0; margin-top: 1px;
     }
 
     .configured {
@@ -194,29 +185,7 @@
       font-size: 12px;
       display: none;
     }
-
     .configured.show { display: block; }
-
-    .divider {
-      border: none;
-      border-top: 1px solid #2e2e40;
-      margin: 24px 0;
-    }
-
-    .generate-btn {
-      display: block;
-      padding: 11px;
-      background: linear-gradient(135deg, #7c3aed, #a855f7);
-      color: white;
-      border: none;
-      border-radius: 8px;
-      font-size: 14px;
-      font-weight: 600;
-      cursor: pointer;
-      transition: opacity 0.2s;
-    }
-
-    .generate-btn:hover { opacity: 0.85; }
 
     .footer-note {
       font-size: 11px;
@@ -225,6 +194,27 @@
       margin-top: 16px;
       line-height: 1.5;
     }
+
+    /* Redirect flow */
+    #redirectContainer { display: none; text-align: center; margin-top: 8px; }
+    .redirect-box {
+      background: #0f0f14; border: 1px solid #2e2e40;
+      padding: 20px; border-radius: 10px; margin-bottom: 16px;
+    }
+    .redirect-box p.title {
+      font-size: 15px; color: #a78bfa; margin-bottom: 8px; font-weight: 700;
+    }
+    .redirect-box p.sub {
+      font-size: 12px; color: #aaa; margin-bottom: 16px; line-height: 1.6;
+    }
+    .redirect-now {
+      display: inline-block; padding: 8px 16px;
+      background: linear-gradient(135deg, #7c3aed, #a855f7);
+      color: white; border-radius: 6px;
+      font-size: 12px; font-weight: 600; text-decoration: none;
+    }
+    .setup-link { font-size: 11px; color: #666; margin-top: 8px; display: block; }
+    .setup-link a { color: #a78bfa; text-decoration: underline; }
   </style>
 </head>
 <body>
@@ -236,7 +226,7 @@
 
     <div class="invite">
       <h2>لقد تم دعوتك لمشاهدة فيديو!</h2>
-      <p>يريد أحد أصدقائك مشاهدة فيلم أو فيديو معك بمزامنة تشغيل كاملة ومباشرة على جهازك الآيباد.</p>
+      <p>يريد أحد أصدقائك مشاهدة فيلم أو فيديو معك بمزامنة تشغيل كاملة.</p>
       <div class="room-name" id="roomDisplay">—</div>
     </div>
 
@@ -246,38 +236,32 @@
       <div class="bookmarklet-wrap">
         <p>اسحب هذا الزر البنفسجي وأفلته في شريط العلامات المفضلة في متصفحك</p>
         <a id="bookmarkBtn" href="#" onclick="return false;">🎬 SyncWatch</a>
-        <button class="copy-btn" id="copyBtn" onclick="copyBookmarklet()">📋 نسخ الرابط يدوياً (بديل السحب)</button>
+        <button class="copy-btn" id="copyBtn">📋 نسخ الرابط يدوياً (بديل السحب)</button>
         <div class="manual-hint" id="manualHint">
           ✅ تم النسخ! الآن:<br>
-          <strong>Chrome/Brave:</strong> افتح المفضلة ← أضف إشارة مرجعية ← الصق الرابط في حقل الـ URL<br>
           <strong>Safari:</strong> اضغط على أيقونة المشاركة ← أضف إلى المفضلة ← ثم عدّل الرابط والصق الكود
         </div>
       </div>
 
       <div class="steps">
-        <div class="step"><div class="step-num">1</div><span>قم بسحب زر <strong>🎬 SyncWatch</strong> البنفسجي بالأعلى وإفلاته في شريط المفضلة (أو على أيقونة الكتاب).</span></div>
-        <div class="step"><div class="step-num">2</div><span>افتح أي موقع فيديو أو فيلم (مثل يوتيوب أو نتفلكس) في متصفح سفاري بالآيباد.</span></div>
-        <div class="step"><div class="step-num">3</div><span>اضغط على علامة المفضلة <strong>🎬 SyncWatch</strong> على صفحة الفيديو. يجب أن تظهر شارة <strong>Waiting 1/2</strong> ثم <strong>Playing · 2</strong> عند الاتصال بالماك.</span></div>
+        <div class="step"><div class="step-num">1</div><span>اسحب زر <strong>🎬 SyncWatch</strong> إلى شريط المفضلة.</span></div>
+        <div class="step"><div class="step-num">2</div><span>افتح موقع الفيديو في Safari.</span></div>
+        <div class="step"><div class="step-num">3</div><span>اضغط على <strong>🎬 SyncWatch</strong> في المفضلة. ستظهر شارة على الشاشة تؤكد الاتصال.</span></div>
       </div>
 
-      <div id="configuredMsg" class="configured">✓ تم ضبط الاتصال للغرفة <span id="configuredRoom"></span></div>
-
-      <div class="footer-note" style="margin-top:16px">صديقك هو من يتحكم بالتشغيل والتقديم والتأخير. أنت فقط تشاهد وسيتزامن الفيديو الخاص بك تلقائياً.</div>
+      <div id="configuredMsg" class="configured">✓ تم ضبط الاتصال للغرفة: <span id="configuredRoom"></span></div>
+      <p class="footer-note">صديقك هو من يتحكم بالتشغيل. أنت فقط تشاهد.</p>
     </div>
 
-    <div id="redirectContainer" style="display: none; text-align: center; margin-top: 8px;">
-      <div style="background: #0f0f14; border: 1px solid #2e2e40; padding: 20px; border-radius: 10px; margin-bottom: 16px;">
-        <p style="font-size: 15px; color: #a78bfa; margin-bottom: 8px; font-weight: 700;">
-          جاري تحويلك لصفحة الفيديو خلال <span id="countdown">6</span> ثوانٍ…
-        </p>
-        <p style="font-size: 12px; color: #aaa; margin-bottom: 16px; line-height: 1.6;">
-          بمجرد فتح صفحة الفيديو، اضغط على علامة المفضلة <strong>🎬 SyncWatch</strong> المحفوظة لديك لبدء المزامنة والتشغيل المشترك.
-        </p>
-        <a id="redirectLink" href="#" style="display: inline-block; padding: 8px 16px; background: linear-gradient(135deg, #7c3aed, #a855f7); color: white; border-radius: 6px; font-size: 12px; font-weight: 600; text-decoration: none;">الانتقال الآن</a>
+    <div id="redirectContainer">
+      <div class="redirect-box">
+        <p class="title">جاري تحويلك للفيديو خلال <span id="countdown">6</span> ثوانٍ…</p>
+        <p class="sub">بعد فتح صفحة الفيديو، اضغط على <strong>🎬 SyncWatch</strong> في مفضلتك لبدء المزامنة.</p>
+        <a id="redirectLink" href="#" class="redirect-now">الانتقال الآن</a>
       </div>
-      <p style="font-size: 11px; color: #666;">
-        أول مرة تستخدم الأداة؟ <a id="setupLink" href="#" style="color: #a78bfa; text-decoration: underline;">اضغط هنا لتثبيت زر المزامنة أولاً</a>
-      </p>
+      <span class="setup-link">
+        أول مرة؟ <a id="setupLink" href="#">اضغط هنا لتثبيت زر المزامنة أولاً</a>
+      </span>
     </div>
   </div>
 
@@ -286,15 +270,19 @@
     var params = new URLSearchParams(location.search);
     var room   = params.get('room');
     var server = params.get('server');
+    var urlParam = params.get('url');
 
-    function copyBookmarklet() {
-      var btn = document.getElementById('copyBtn');
+    // ── Copy button ──────────────────────────────────────────────────────────
+    document.getElementById('copyBtn').addEventListener('click', function() {
+      var btn  = this;
       var hint = document.getElementById('manualHint');
       var href = document.getElementById('bookmarkBtn').href;
+
       if (!href || href === location.href || href.indexOf('javascript:') === -1) {
-        btn.textContent = '⚠️ احفظ الإعداد أولاً';
+        btn.textContent = '⚠️ الرابط غير جاهز';
         return;
       }
+
       navigator.clipboard.writeText(href).then(function() {
         btn.textContent = '✅ تم النسخ!';
         btn.classList.add('copied');
@@ -306,51 +294,50 @@
       }).catch(function() {
         btn.textContent = '⚠️ لم يتم النسخ — جرب السحب';
       });
-    }
+    });
 
+    // ── Init ─────────────────────────────────────────────────────────────────
     (function init() {
-      var urlParam = params.get('url');
-
+      // Save to localStorage so the bookmarklet can fall back to it
       if (room && server) {
-        localStorage.setItem('sw', JSON.stringify({ r: room, u: server }));
+        try { localStorage.setItem('sw', JSON.stringify({ r: room, u: server })); } catch(e) {}
         document.getElementById('roomDisplay').textContent = room;
         document.getElementById('configuredRoom').textContent = room;
         document.getElementById('configuredMsg').classList.add('show');
       } else {
-        var existing = JSON.parse(localStorage.getItem('sw') || 'null');
-        if (existing) {
-          document.getElementById('roomDisplay').textContent = existing.r;
-        }
+        try {
+          var existing = JSON.parse(localStorage.getItem('sw') || 'null');
+          if (existing && existing.r) document.getElementById('roomDisplay').textContent = existing.r;
+        } catch(e) {}
       }
 
+      // FIX: build the bookmarklet href correctly — no ',void(0)' append.
+      // encodeBookmarkletCode already handles all necessary escaping.
       var code = configureBookmarklet(buildBookmarklet(), server, room);
-      document.getElementById('bookmarkBtn').href = 'javascript:' + encodeBookmarkletCode(code + ',void(0)');
+      document.getElementById('bookmarkBtn').href = 'javascript:' + encodeBookmarkletCode(code);
 
+      // ── Redirect flow (when ?url= param is present) ──────────────────────
       if (urlParam) {
-        var isValidUrl = false;
+        var isValid = false;
         try {
-          var parsedUrl = new URL(urlParam);
-          if (parsedUrl.protocol === 'http:' || parsedUrl.protocol === 'https:') {
-            isValidUrl = true;
-          }
-        } catch (e) {}
+          var parsed = new URL(urlParam);
+          isValid = parsed.protocol === 'http:' || parsed.protocol === 'https:';
+        } catch(e) {}
 
-        if (isValidUrl) {
+        if (isValid) {
           document.getElementById('setupSection').style.display = 'none';
           document.getElementById('redirectContainer').style.display = 'block';
-
           document.getElementById('redirectLink').href = urlParam;
-          document.getElementById('setupLink').href = '?room=' + encodeURIComponent(room || '') + '&server=' + encodeURIComponent(server || '');
+
+          var setupHref = '?room=' + encodeURIComponent(room || '') + '&server=' + encodeURIComponent(server || '');
+          document.getElementById('setupLink').href = setupHref;
 
           var sec = 6;
-          var timer = setInterval(function(){
+          var timer = setInterval(function() {
             sec--;
             var cd = document.getElementById('countdown');
             if (cd) cd.textContent = sec;
-            if (sec <= 0) {
-              clearInterval(timer);
-              window.location.href = urlParam;
-            }
+            if (sec <= 0) { clearInterval(timer); window.location.href = urlParam; }
           }, 1000);
         }
       }
