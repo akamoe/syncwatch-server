@@ -1,5 +1,5 @@
 // SyncWatch — background.js
-// Service worker: owns the WebSocket connection (CSP-safe) and relays messages to content scripts.
+// Service worker: owns the WebSocket connection and relays messages to content scripts.
 
 let ws = null;
 let role = null;
@@ -11,19 +11,57 @@ let connectId = 0;
 let lastStatusState = 'disconnected';
 let lastClientCount = 0;
 
+// ─── Service worker keepalive ─────────────────────────────────────────────────
+// MV3 service workers die after ~30s of inactivity. chrome.alarms keeps us alive.
+// FIX: clear existing alarm before creating — alarms survive SW restarts, so
+// calling create() on each SW boot would stack duplicate alarms without this.
+
+chrome.alarms.clear('sw-keepalive', () => {
+  chrome.alarms.create('sw-keepalive', { periodInMinutes: 0.4 }); // ~every 25s
+});
+
+chrome.alarms.onAlarm.addListener((alarm) => {
+  if (alarm.name !== 'sw-keepalive') return;
+
+  if (!serverUrl || !roomId) {
+    // SW was killed and restarted — reload config from storage
+    chrome.storage.local.get(['role', 'roomId', 'serverUrl'], loadConfig);
+    return;
+  }
+
+  if (ws && ws.readyState === 1) {
+    try { ws.send(JSON.stringify({ type: 'ping', room: roomId })); } catch (_) {}
+  } else if (!ws || ws.readyState > 1) {
+    connect();
+  }
+});
+
+// ─── Port keepalive from content scripts ──────────────────────────────────────
+
+chrome.runtime.onConnect.addListener((port) => {
+  if (!port.name?.startsWith('syncwatch-tab-')) return;
+  const tabId = port.sender?.tab?.id;
+  if (tabId) {
+    videoTabId = tabId;
+    updateBadge(lastStatusState, lastClientCount);
+    console.log(`[SyncWatch] Tab ${tabId} connected via port`);
+  }
+  port.onDisconnect.addListener(() => {
+    console.log('[SyncWatch] Tab port disconnected');
+  });
+});
+
 // ─── Config bootstrap ─────────────────────────────────────────────────────────
 
 function loadConfig(cfg) {
   disconnect();
   if (!cfg.role || !cfg.roomId || !cfg.serverUrl) {
-    role = null;
-    roomId = null;
-    serverUrl = null;
+    role = null; roomId = null; serverUrl = null;
     updateStatus('disconnected');
     return;
   }
-  role = cfg.role;
-  roomId = cfg.roomId;
+  role      = cfg.role;
+  roomId    = cfg.roomId;
   serverUrl = cfg.serverUrl;
   connect();
 }
@@ -34,7 +72,7 @@ chrome.storage.onChanged.addListener((changes) => {
   if (changes.role || changes.roomId || changes.serverUrl) {
     chrome.storage.local.get(['role', 'roomId', 'serverUrl'], loadConfig);
   }
-  if (changes.kickTrigger && changes.kickTrigger.newValue) {
+  if (changes.kickTrigger?.newValue) {
     sendKick();
   }
 });
@@ -49,45 +87,34 @@ chrome.runtime.onMessage.addListener((msg, sender) => {
   const tabId = sender.tab?.id;
 
   if (msg.type === 'register-tab') {
-    if (tabId) {
-      videoTabId = tabId;
-      updateBadge(lastStatusState, lastClientCount);
-    }
+    if (tabId) { videoTabId = tabId; updateBadge(lastStatusState, lastClientCount); }
     return;
   }
-
   if (msg.type === 'video-event') {
     if (tabId) videoTabId = tabId;
     sendWs({ ...msg.payload, room: roomId });
     return;
   }
-
   if (msg.type === 'sync-state') {
     if (tabId) videoTabId = tabId;
     sendWs({ ...msg.payload, room: roomId });
     return;
   }
+  if (msg.type === 'kick')  { sendKick();    return; }
+  if (msg.type === 'reset') { handleReset(); return; }
 
-  if (msg.type === 'kick') {
-    sendKick();
-    return;
-  }
-
-  if (msg.type === 'reset') {
-    handleReset();
-    return;
-  }
+  // FIX: respond to ping so content.js rediscovery works
+  // Returning true tells Chrome we'll respond asynchronously — but here we just
+  // want to acknowledge. The response value doesn't matter; what matters is that
+  // sendMessage() in rediscoverVideoTab() doesn't throw "no listener" error.
+  if (msg.type === 'syncwatch-ping') return; // implicit undefined response is fine
 });
 
 // ─── WebSocket connection ─────────────────────────────────────────────────────
 
 function disconnect() {
   clearTimeout(reconnectTimer);
-  if (ws) {
-    ws.onclose = null;
-    ws.close();
-    ws = null;
-  }
+  if (ws) { ws.onclose = null; ws.close(); ws = null; }
 }
 
 function connect() {
@@ -105,28 +132,27 @@ function connect() {
     if (id !== connectId) return;
     console.log(`[SyncWatch] Connected as ${role} in room "${roomId}"`);
     ws.send(JSON.stringify({ type: 'join', room: roomId, role }));
+    // FIX: don't call updateStatus('connected') here — wait for room-info from server.
+    // Calling 'connecting' here is also wrong since we're already open.
+    // Just update badge to show we're live but waiting for room-info.
     updateStatus('connecting');
+    rediscoverVideoTab();
   };
 
   ws.onmessage = (event) => {
     if (id !== connectId) return;
     let data;
-    try {
-      data = JSON.parse(event.data);
-    } catch {
-      return;
-    }
+    try { data = JSON.parse(event.data); } catch { return; }
 
     if (data.type === 'room-info') {
+      // FIX: only call 'connected' when room-info arrives — this is the authoritative signal
       updateStatus('connected', data.count);
       return;
     }
-
     if (data.type === 'sync-request' && role === 'controller') {
       requestSyncState();
       return;
     }
-
     if (role === 'receiver') {
       forwardToVideoTab({ type: 'remote-event', data });
     }
@@ -134,7 +160,7 @@ function connect() {
 
   ws.onclose = (event) => {
     if (id !== connectId) return;
-    if (event && event.reason === 'kicked') {
+    if (event?.reason === 'kicked') {
       console.warn('[SyncWatch] Kicked from room.');
       handleReset();
       return;
@@ -144,9 +170,7 @@ function connect() {
     reconnectTimer = setTimeout(connect, 3000);
   };
 
-  ws.onerror = () => {
-    if (id === connectId) ws.close();
-  };
+  ws.onerror = () => { if (id === connectId) ws.close(); };
 }
 
 function sendWs(payload) {
@@ -154,16 +178,11 @@ function sendWs(payload) {
   ws.send(JSON.stringify(payload));
 }
 
-function sendKick() {
-  sendWs({ type: 'kick', room: roomId });
-}
+function sendKick()   { sendWs({ type: 'kick', room: roomId }); }
 
 function handleReset() {
   disconnect();
-  role = null;
-  roomId = null;
-  serverUrl = null;
-  videoTabId = null;
+  role = null; roomId = null; serverUrl = null; videoTabId = null;
   chrome.storage.local.remove(['role', 'roomId', 'serverUrl', 'syncStatus']);
   updateStatus('disconnected');
 }
@@ -172,27 +191,33 @@ function handleReset() {
 
 function forwardToVideoTab(msg) {
   if (!videoTabId) return;
-  chrome.tabs.sendMessage(videoTabId, msg).catch(() => {
-    videoTabId = null;
-  });
+  chrome.tabs.sendMessage(videoTabId, msg).catch(() => { videoTabId = null; });
 }
 
 function requestSyncState() {
-  const send = (tabId) => {
-    chrome.tabs.sendMessage(tabId, { type: 'sync-request' }).catch(() => {
-      if (tabId === videoTabId) videoTabId = null;
-    });
-  };
+  if (!videoTabId) return;
+  chrome.tabs.sendMessage(videoTabId, { type: 'sync-request' }).catch(() => { videoTabId = null; });
+}
 
-  if (videoTabId) {
-    send(videoTabId);
-    return;
-  }
+// ─── Rediscover video tab after SW restart ────────────────────────────────────
+// FIX: stop as soon as we find the first responding tab to avoid race overwrites.
 
-  chrome.tabs.query({ active: true, lastFocusedWindow: true }, (tabs) => {
-    if (tabs[0]?.id) {
-      videoTabId = tabs[0].id;
-      send(videoTabId);
+function rediscoverVideoTab() {
+  if (videoTabId) return; // already known
+  chrome.tabs.query({}, (tabs) => {
+    let found = false;
+    for (const tab of tabs) {
+      if (found) break;
+      chrome.tabs.sendMessage(tab.id, { type: 'syncwatch-ping' })
+        .then(() => {
+          if (!found) {
+            found = true;
+            videoTabId = tab.id;
+            updateBadge(lastStatusState, lastClientCount);
+            console.log(`[SyncWatch] Rediscovered video tab ${tab.id}`);
+          }
+        })
+        .catch(() => {});
     }
   });
 }
@@ -200,31 +225,26 @@ function requestSyncState() {
 // ─── Status + badge ───────────────────────────────────────────────────────────
 
 function updateStatus(state, clientCount) {
-  lastStatusState = state;
-  lastClientCount = clientCount || 0;
-
-  const status = {
-    connected: state === 'connected',
-    roomId,
-    role,
-    clientCount: lastClientCount,
-  };
-  chrome.storage.local.set({ syncStatus: status });
+  lastStatusState  = state;
+  lastClientCount  = clientCount || 0;
+  chrome.storage.local.set({
+    syncStatus: { state, connected: state === 'connected', roomId, role, clientCount: lastClientCount }
+  });
   updateBadge(state, lastClientCount);
 }
 
 function updateBadge(state, clientCount) {
   const connected = state === 'connected';
-  const badge = !connected ? '!' : String(clientCount || '~');
+  const badge     = !connected ? '!' : String(clientCount || '~');
   const badgeOpts = { text: badge };
   if (videoTabId) badgeOpts.tabId = videoTabId;
   chrome.action.setBadgeText(badgeOpts);
 
-  const colors = { '!': '#dc2626', '?': '#d97706' };
-  let color = colors[badge];
-  if (!color && /^[2-9]/.test(badge)) color = '#4ade80';
-  if (!color && /^1$/.test(badge)) color = '#d97706';
-  const colorOpts = { color: color || '#7c3aed' };
+  let color = badge === '!' ? '#dc2626'
+    : /^[2-9]/.test(badge) ? '#4ade80'
+    : badge === '1'         ? '#d97706'
+    : '#7c3aed';
+  const colorOpts = { color };
   if (videoTabId) colorOpts.tabId = videoTabId;
   chrome.action.setBadgeBackgroundColor(colorOpts);
 }

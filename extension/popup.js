@@ -35,7 +35,9 @@ function renderConnection(status) {
   connPanel.style.display = 'block';
   connRoom.textContent = 'Room: ' + status.roomId;
 
-  if (status.connected) {
+  const state = status.state || (status.connected ? 'connected' : 'disconnected');
+
+  if (state === 'connected') {
     connDot.className = 'dot green';
     connText.textContent = 'Connected';
     const count = status.clientCount;
@@ -44,6 +46,10 @@ function renderConnection(status) {
     } else {
       connClients.textContent = 'Waiting for others to join…';
     }
+  } else if (state === 'connecting') {
+    connDot.className = 'dot yellow';
+    connText.textContent = 'Joining room…';
+    connClients.textContent = 'Waiting for server…';
   } else {
     connDot.className = 'dot red';
     connText.textContent = 'Disconnected';

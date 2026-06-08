@@ -34,6 +34,29 @@ chrome.storage.onChanged.addListener((changes) => {
   }
 });
 
+// ─── Port-based keepalive ────────────────────────────────────────────────────
+// Keeps the MV3 service worker alive as long as this tab is open.
+// Without this, the SW can be killed ~30s after last interaction.
+
+let swPort = null;
+
+function connectPort() {
+  if (swPort) return;
+  try {
+    swPort = chrome.runtime.connect({ name: 'syncwatch-tab-' + Date.now() });
+    swPort.onDisconnect.addListener(() => {
+      swPort = null;
+      // Reconnect on disconnect (handles SW restart)
+      setTimeout(connectPort, 1000);
+    });
+  } catch (e) {
+    swPort = null;
+    setTimeout(connectPort, 3000);
+  }
+}
+
+connectPort();
+
 chrome.runtime.onMessage.addListener((msg) => {
   if (msg.type === 'reset') {
     role = null;
@@ -48,35 +71,17 @@ chrome.runtime.onMessage.addListener((msg) => {
   if (msg.type === 'sync-request' && role === 'controller') {
     respondSyncState();
   }
+
+  if (msg.type === 'syncwatch-ping') {
+    // Respond to background script's rediscovery ping
+    // The promise resolution is the response itself
+  }
 });
 
 // ─── Find the video element (handles late-loading SPAs) ───────────────────────
 
 function findVideo() {
-  let best = null;
-  let bestArea = 0;
-  for (const v of document.querySelectorAll('video')) {
-    const r = v.getBoundingClientRect();
-    const area = r.width * r.height;
-    if (area > bestArea && r.width > 50 && r.height > 50) {
-      best = v;
-      bestArea = area;
-    }
-  }
-  if (best) return best;
-  for (const el of document.querySelectorAll('*')) {
-    const sr = el.shadowRoot;
-    if (!sr) continue;
-    for (const v of sr.querySelectorAll('video')) {
-      const r = v.getBoundingClientRect();
-      const area = r.width * r.height;
-      if (area > bestArea && r.width > 50 && r.height > 50) {
-        best = v;
-        bestArea = area;
-      }
-    }
-  }
-  return best;
+  return document.querySelector('video');
 }
 
 function waitForVideo(cb) {
