@@ -256,7 +256,7 @@
       return `(function(){
   if(window.__syncwatch){window.__syncwatch.destroy();return;}
   var SERVER='${serverUrl}',ROOM='${roomId}';
-  var ws,isSyncing=false,retryTimer=null;
+  var ws,isSyncing=false,retryTimer=null,roomCount=0;
 
   // ── UI badge ──────────────────────────────────────────────────────────────
   var badge=document.createElement('div');
@@ -273,6 +273,10 @@
   document.body.appendChild(badge);
 
   function setStatus(text,color){badge.textContent='🎬 '+text;badge.style.background=color||'#7c3aed';}
+  function updateBadge(){
+    if(roomCount>0)setStatus(roomCount+' in room','#065f46');
+    else setStatus('Connected ✓','#065f46');
+  }
   setStatus('Connecting…','#92400e');
 
   // ── Find video ────────────────────────────────────────────────────────────
@@ -304,7 +308,11 @@
       setStatus('Connected ✓','#065f46');
     };
     ws.onmessage=function(e){
-      try{applyEvent(JSON.parse(e.data));}catch(ex){}
+      try{
+        var d=JSON.parse(e.data);
+        if(d.type==='room-info'){roomCount=d.count;updateBadge();return;}
+        applyEvent(d);
+      }catch(ex){}
     };
     ws.onclose=function(){
       setStatus('Reconnecting…','#92400e');

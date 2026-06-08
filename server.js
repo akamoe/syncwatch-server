@@ -30,9 +30,16 @@ const rooms = {};
 
 wss.on('connection', (ws, req) => {
   let currentRoom = null;
-  let clientRole  = null;
 
   console.log(`[+] New connection from ${req.socket.remoteAddress}`);
+
+  function broadcastRoomInfo() {
+    if (!currentRoom || !rooms[currentRoom]) return;
+    const info = JSON.stringify({ type: 'room-info', count: rooms[currentRoom].size });
+    for (const client of rooms[currentRoom]) {
+      if (client.readyState === 1) client.send(info);
+    }
+  }
 
   ws.on('message', (raw) => {
     let data;
@@ -44,15 +51,16 @@ wss.on('connection', (ws, req) => {
 
     if (data.type === 'join') {
       currentRoom = data.room;
-      clientRole  = data.role || 'receiver';
+      ws.role = data.role || 'receiver';
       if (!rooms[currentRoom]) rooms[currentRoom] = new Set();
       rooms[currentRoom].add(ws);
-      console.log(`[~] "${clientRole}" joined room "${currentRoom}" (${rooms[currentRoom].size} clients)`);
+      console.log(`[~] "${ws.role}" joined room "${currentRoom}" (${rooms[currentRoom].size} clients)`);
+      broadcastRoomInfo();
       return;
     }
 
     if (!currentRoom || !rooms[currentRoom]) return;
-    if (clientRole !== 'controller') return;
+    if (ws.role !== 'controller') return;
 
     for (const client of rooms[currentRoom]) {
       if (client !== ws && client.readyState === 1) {
@@ -68,6 +76,7 @@ wss.on('connection', (ws, req) => {
     if (currentRoom && rooms[currentRoom]) {
       rooms[currentRoom].delete(ws);
       console.log(`[-] Client left room "${currentRoom}" (${rooms[currentRoom].size} remaining)`);
+      broadcastRoomInfo();
       if (rooms[currentRoom].size === 0) delete rooms[currentRoom];
     }
   });
