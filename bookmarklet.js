@@ -176,5 +176,10 @@ function configureBookmarklet(code, server, room) {
  * and produces URLs that browsers (especially Safari) struggle with.
  */
 function encodeBookmarkletCode(code) {
-  return code.replace(/%/g, '%25').replace(/\\/g, '%5C');
+  // Must escape # (URL fragment identifier — would truncate the code)
+  // and % (prevents double-encoding) and backslash (escaping issues)
+  return code
+    .replace(/%/g, '%25')
+    .replace(/#/g, '%23')
+    .replace(/\\/g, '%5C');
 }
