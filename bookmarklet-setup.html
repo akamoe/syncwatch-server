@@ -242,109 +242,17 @@
         return;
       }
 
-      // Build the bookmarklet code (self-contained, no extension APIs)
-      const code = buildBookmarklet(serverUrl, roomId);
+      // Save config to localStorage + build generic bookmarklet
+      localStorage.setItem('sw', JSON.stringify({ r: roomId, u: serverUrl }));
+      const code = buildBookmarklet();
       document.getElementById('bookmarkBtn').href = 'javascript:' + encodeURIComponent(code + ',void(0)');
 
-      status.textContent = '✓ Bookmarklet ready! Drag the purple button to your bookmarks bar.';
+      status.textContent = 'Bookmarklet ready! Drag the purple button to your bookmarks bar.';
       status.className = 'status ok';
     }
 
-    function buildBookmarklet(serverUrl, roomId) {
-      return `(function(){
-  if(window.__syncwatch){window.__syncwatch.destroy();return;}
-  var SERVER='${serverUrl}',ROOM='${roomId}';
-  var ws,isSync=false,retry=null,rc=0,ctrlPlaying=false;
-
-  // ── UI badge ──────────────────────────────────────────────────────────────
-  var b=document.createElement('div');
-  b.id='__sw_badge';
-  Object.assign(b.style,{
-    position:'fixed',top:'12px',right:'12px',zIndex:'2147483647',
-    padding:'6px 12px',borderRadius:'20px',fontSize:'12px',fontWeight:'700',
-    fontFamily:'-apple-system,sans-serif',cursor:'pointer',
-    background:'#7c3aed',color:'#fff',boxShadow:'0 2px 12px rgba(0,0,0,.4)',
-    transition:'background .3s'
-  });
-  b.title='Tap to re-sync';
-  b.onclick=function(){
-    if(!ws||ws.readyState!==1)return;
-    st('Syncing…','#7c3aed');
-    ws.send(JSON.stringify({type:'sync-request',room:ROOM}));
-  };
-  document.body.appendChild(b);
-
-  function st(t,c){b.textContent='🎬 '+t;b.style.background=c||'#7c3aed';}
-  function ub(){
-    var icon=ctrlPlaying?'▶ ':'⏸ ';
-    st(icon+(rc>1?rc+' in room':'OK'),'#065f46');
-  }
-  st('Connecting…','#92400e');
-
-  // ── Find video ────────────────────────────────────────────────────────────
-  function fv(){return document.querySelector('video');}
-
-  // ── Apply remote event ────────────────────────────────────────────────────
-  function ae(d){
-    var v=fv();
-    if(!v)return;
-    isSync=true;
-    if(d.type==='play'){
-      ctrlPlaying=true;
-      if(Math.abs(v.currentTime-d.currentTime)>2)v.currentTime=d.currentTime;
-      v.play().catch(function(){});
-    }else if(d.type==='pause'){
-      ctrlPlaying=false;
-      if(Math.abs(v.currentTime-d.currentTime)>2)v.currentTime=d.currentTime;
-      v.pause();
-    }else if(d.type==='seek'){
-      v.currentTime=d.currentTime;
-    }
-    ub();
-    setTimeout(function(){isSync=false;},600);
-  }
-
-  // ── WebSocket ─────────────────────────────────────────────────────────────
-  function cn(){
-    try{ws=new WebSocket(SERVER);}catch(e){st('Bad URL','#dc2626');return;}
-    ws.onopen=function(){
-      retry=null;
-      ws.send(JSON.stringify({type:'join',room:ROOM,role:'receiver'}));
-      ub();
-    };
-    ws.onmessage=function(e){
-      try{
-        var d=JSON.parse(e.data);
-        if(d.type==='room-info'){rc=d.count;ub();return;}
-        if(d.type==='sync-state'){
-          ctrlPlaying=d.playing;
-          var v=fv();
-          if(v){isSync=true;v.currentTime=d.currentTime;if(d.playing)v.play().catch(function(){});else v.pause();setTimeout(function(){isSync=false;},600);}
-          ub();
-          return;
-        }
-        ae(d);
-      }catch(ex){}
-    };
-    ws.onclose=function(){
-      st(retry?'Server waking…':'Reconnecting…','#92400e');
-      retry=setTimeout(cn,3000);
-    };
-    ws.onerror=function(){ws.close();};
-  }
-  cn();
-
-  // ── Cleanup ───────────────────────────────────────────────────────────────
-  window.__syncwatch={
-    destroy:function(){
-      clearTimeout(retry);
-      if(ws)ws.close();
-      var e=document.getElementById('__sw_badge');
-      if(e)e.remove();
-      delete window.__syncwatch;
-    }
-  };
-})()`;
+    function buildBookmarklet() {
+      return '(function(){if(window.__syncwatch){window.__syncwatch.destroy();return}var c=JSON.parse(localStorage.getItem("sw")||"{}");if(!c.u||!c.r)return;var S=c.u,R=c.r;var w,i=0,r=0,n=0,p=0;var b=document.createElement("div");b.id="__sw";b.style.cssText="position:fixed;top:12px;right:12px;z-index:2147483647;padding:5px 10px;border-radius:20px;font:12px/1 -apple-system,sans-serif;font-weight:700;cursor:pointer;background:#7c3aed;color:#fff;box-shadow:0 2px 12px rgba(0,0,0,.4)";b.title="Tap to re-sync";b.onclick=function(){if(!w||w.readyState!==1)return;st("sync","#7c3aed");w.send(JSON.stringify({type:"sync-request",room:R}))};document.body.appendChild(b);function st(a,c){b.textContent=a;b.style.background=c}function ub(){st((p?"p ":"s ")+(n>1?n+"r":"ok"),"#065f46")}st("init","#92400e");function fv(){return document.querySelector("video")}function ae(d){var v=fv();if(!v)return;i=1;if(d.type=="play"){p=1;if(Math.abs(v.currentTime-d.currentTime)>2)v.currentTime=d.currentTime;v.play().catch(function(){})}else if(d.type=="pause"){p=0;if(Math.abs(v.currentTime-d.currentTime)>2)v.currentTime=d.currentTime;v.pause()}else if(d.type=="seek")v.currentTime=d.currentTime;ub();setTimeout(function(){i=0},600)}function cn(){try{w=new WebSocket(S)}catch(e){st("err","#dc2626");return}w.onopen=function(){r=0;w.send(JSON.stringify({type:"join",room:R,role:"receiver"}));ub()};w.onmessage=function(e){try{var d=JSON.parse(e.data);if(d.type=="room-info"){n=d.count;ub();return}if(d.type=="sync-state"){p=d.playing;var v=fv();if(v){i=1;v.currentTime=d.currentTime;if(d.playing)v.play().catch(function(){});else v.pause();setTimeout(function(){i=0},600)}ub();return}ae(d)}catch(ex){}};w.onclose=function(){st(r?"wake":"recon","#92400e");r=setTimeout(cn,3000)};w.onerror=function(){w.close()}}cn();window.__syncwatch={destroy:function(){clearTimeout(r);if(w)w.close();var e=document.getElementById("__sw");if(e)e.remove();delete window.__syncwatch}}})()';
     }
   </script>
 </body>

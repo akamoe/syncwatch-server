@@ -76,6 +76,16 @@ wss.on('connection', (ws, req) => {
       return;
     }
 
+    if (data.type === 'kick') {
+      console.log(`[kick] Room "${currentRoom}" — kicking all receivers`);
+      for (const client of rooms[currentRoom]) {
+        if (client !== ws && client.readyState === 1) {
+          client.close(1000, 'kicked');
+        }
+      }
+      return;
+    }
+
     if (ws.role !== 'controller') return;
 
     for (const client of rooms[currentRoom]) {
