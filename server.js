@@ -71,6 +71,8 @@ wss.on('connection', (ws, req) => {
 
     if (!currentRoom || !rooms[currentRoom]) return;
 
+    if (data.type === 'ping') return; // keepalive — do not broadcast
+
     if (data.type === 'sync-request') {
       for (const client of rooms[currentRoom]) {
         if (client.role === 'controller' && client.readyState === 1) {

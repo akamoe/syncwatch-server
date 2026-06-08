@@ -2,6 +2,7 @@
 
 function buildBookmarklet() {
   return `(function(){
+var __swStyle=document.getElementById("__swStyle");if(!__swStyle){__swStyle=document.createElement("style");__swStyle.id="__swStyle";__swStyle.textContent="@keyframes __swPulse{0%,100%{box-shadow:0 2px 12px rgba(0,0,0,.4),0 0 0 0 rgba(124,58,237,.6)}50%{box-shadow:0 2px 12px rgba(0,0,0,.4),0 0 0 8px rgba(124,58,237,0)}}#__sw.__swConnecting{animation:__swPulse 1.6s ease-in-out infinite}";document.head.appendChild(__swStyle)}
 if(window.__syncwatch){window.__syncwatch.destroy();return}
 var S=__SERVER__,R=__ROOM__;
 if(!S||!R||String(S).indexOf("PLACEHOLDER")!==-1||String(R).indexOf("PLACEHOLDER")!==-1){
@@ -35,18 +36,22 @@ try{localStorage.setItem("sw",JSON.stringify({u:S,r:R}))}catch(e){}
 var w=null,reconT=0,openT=0,clients=0,playing=0,obs=null,pending=null;
 var b=document.createElement("div");
 b.id="__sw";
-b.style.cssText="position:fixed;top:max(12px,env(safe-area-inset-top));right:max(12px,env(safe-area-inset-right));z-index:2147483647;padding:8px 14px;border-radius:22px;font:13px/1.3 -apple-system,BlinkMacSystemFont,sans-serif;font-weight:700;cursor:pointer;background:#92400e;color:#fff;box-shadow:0 2px 12px rgba(0,0,0,.4);white-space:nowrap;-webkit-user-select:none;user-select:none;max-width:92vw;overflow:hidden;text-overflow:ellipsis";
+b.style.cssText="position:fixed;top:max(12px,env(safe-area-inset-top));right:max(12px,env(safe-area-inset-right));z-index:2147483647;padding:8px 14px;border-radius:22px;font:13px/1.3 -apple-system,BlinkMacSystemFont,sans-serif;font-weight:700;cursor:pointer;background:#7c3aed;color:#fff;box-shadow:0 2px 12px rgba(0,0,0,.4);white-space:nowrap;-webkit-user-select:none;user-select:none;max-width:92vw;overflow:hidden;text-overflow:ellipsis;transition:background .4s";
 b.title="Tap to re-sync with Mac";
 (document.body||document.documentElement).appendChild(b);
 function label(){
-  if(!w||w.readyState!==1)return "Connecting…";
-  if(clients<2)return "Waiting "+clients+"/2";
-  return (playing?"Playing":"Paused")+" · "+clients;
+  if(!w||w.readyState===0)return "🎬 Connecting…";
+  if(!w||w.readyState!==1)return "🔄 Reconnecting…";
+  if(clients<2)return "🎬 Waiting "+clients+"/2";
+  return (playing?"▶ Playing":"⏸ Paused")+" · "+clients+" connected";
 }
 function paint(){
   var live=w&&w.readyState===1;
+  var connecting=!w||w.readyState===0||w.readyState===2||w.readyState===3;
   b.textContent=label();
-  b.style.background=live&&clients>=2?"#065f46":(live?"#92400e":"#dc2626");
+  if(live&&clients>=2){b.style.background="#065f46";b.classList.remove("__swConnecting")}
+  else if(live){b.style.background="#7c3aed";b.classList.add("__swConnecting")}
+  else{b.style.background="#dc2626";b.classList.add("__swConnecting")}
 }
 paint();
 b.onclick=function(){
@@ -110,15 +115,17 @@ function connect(){
   try{w=new WebSocket(S)}catch(e){b.textContent="Bad server URL";b.style.background="#dc2626";return}
   openT=setTimeout(function(){
     if(!w||w.readyState!==1){
-      b.textContent="Blocked — use Safari on loose CSP site";
+      b.textContent="⛔ Blocked by site CSP — try on YouTube";
       b.style.background="#dc2626";
+      b.classList.add("__swConnecting");
     }
-  },6000);
+  },7000);
+  var __firstConnect=true;
   w.onopen=function(){
     clearTimeout(openT);
     clearTimeout(reconT);
     w.send(JSON.stringify({type:"join",room:R,role:"receiver"}));
-    paint();
+    if(__firstConnect){__firstConnect=false;b.textContent="🎬 Joined! Waiting for host…";b.style.background="#7c3aed";setTimeout(paint,1500);}else{paint();}
   };
   w.onmessage=function(e){
     try{
