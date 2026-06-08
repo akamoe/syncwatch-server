@@ -245,7 +245,7 @@
 
       localStorage.setItem('sw', JSON.stringify({ r: roomId, u: serverUrl }));
       var code = configureBookmarklet(buildBookmarklet(), serverUrl, roomId);
-      document.getElementById('bookmarkBtn').href = 'javascript:' + encodeURIComponent(code + ',void(0)');
+      document.getElementById('bookmarkBtn').href = 'javascript:' + encodeBookmarkletCode(code + ',void(0)');
 
       status.textContent = 'Bookmarklet ready! Drag the purple button to your bookmarks bar.';
       status.className = 'status ok';

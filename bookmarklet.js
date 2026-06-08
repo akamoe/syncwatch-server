@@ -37,7 +37,7 @@ if(!S||!R||String(S).indexOf("PLACEHOLDER")!==-1||String(R).indexOf("PLACEHOLDER
     if(ref){var qi=ref.indexOf("?");if(qi!==-1){var rp=new URLSearchParams(ref.substring(qi));var rs=rp.get("server"),rr=rp.get("room");if(rs&&rr){S=rs;R=rr}}}
   }catch(e){}
   if(!S||!R){
-    try{var c=JSON.parse(localStorage.getItem("sw")||"{}");S=c.u||"";R=c.r||}catch(e){}
+    try{var c=JSON.parse(localStorage.getItem("sw")||"{}");S=c.u||"";R=c.r||""}catch(e){}
   }
 }
 if(!S||!R){
@@ -162,7 +162,19 @@ function configureBookmarklet(code, server, room) {
       .replace('__SERVER__', JSON.stringify(server))
       .replace('__ROOM__', JSON.stringify(room));
   }
+  // Bake defaults into the code so the placeholder replacement is safe even when server/room are null
   return code
-    .replace('__SERVER__', '"WS_URL_PLACEHOLDER"')
-    .replace('__ROOM__', '"ROOM_ID_PLACEHOLDER"');
+    .replace('__SERVER__', '"ws://localhost:3000"')
+    .replace('__ROOM__', '"default"');
+}
+
+/**
+ * Encode bookmarklet code for a javascript: URL using MINIMAL escaping.
+ * Only escapes: %  (so existing %XX sequences aren't double-encoded)
+ * and backslash (to avoid escaping issues in URL context).
+ * This is FAR more reliable than encodeURIComponent which over-encodes
+ * and produces URLs that browsers (especially Safari) struggle with.
+ */
+function encodeBookmarkletCode(code) {
+  return code.replace(/%/g, '%25').replace(/\\/g, '%5C');
 }

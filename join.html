@@ -324,7 +324,7 @@
       }
 
       var code = configureBookmarklet(buildBookmarklet(), server, room);
-      document.getElementById('bookmarkBtn').href = 'javascript:' + encodeURIComponent(code + ',void(0)');
+      document.getElementById('bookmarkBtn').href = 'javascript:' + encodeBookmarkletCode(code + ',void(0)');
 
       if (urlParam) {
         var isValidUrl = false;
