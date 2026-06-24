@@ -1,25 +1,34 @@
-// SyncWatch — content.js
-// Detects video events on the page and applies remote sync actions relayed from background.js.
+// SyncWatch — content.js v3.1
+// Bulletproof: logs every step, handles SPA navigation, retries on failure.
 
 let role = null;
 let roomId = null;
+let serverUrl = null;
 let isSyncing = false;
 let video = null;
+let listenersAttached = false;
+let pollTimer = null;
 
 // ─── Bootstrap ───────────────────────────────────────────────────────────────
 
 function loadConfig(cfg) {
-  role = cfg.role || null;
-  roomId = cfg.roomId || null;
+  const newRole = cfg.role || null;
+  const newRoom = cfg.roomId || null;
+  const newUrl = cfg.serverUrl || null;
 
-  if (!role || !roomId || !cfg.serverUrl) {
-    role = null;
-    roomId = null;
-    video = null;
+  if (!newRole || !newRoom || !newUrl) {
+    console.log('[SyncWatch] No config — not activating');
+    role = null; roomId = null; serverUrl = null; video = null;
     return;
   }
 
-  chrome.runtime.sendMessage({ type: 'register-tab' }).catch(() => {});
+  role = newRole;
+  roomId = newRoom;
+  serverUrl = newUrl;
+
+  console.log('[SyncWatch] Config loaded: role=' + role + ' room=' + roomId);
+  chrome.runtime.sendMessage({ type: 'register-tab' })
+    .catch(e => console.log('[SyncWatch] register-tab failed:', e.message));
 
   if (role === 'controller') {
     attachVideoListeners();
@@ -35,8 +44,6 @@ chrome.storage.onChanged.addListener((changes) => {
 });
 
 // ─── Port-based keepalive ────────────────────────────────────────────────────
-// Keeps the MV3 service worker alive as long as this tab is open.
-// Without this, the SW can be killed ~30s after last interaction.
 
 let swPort = null;
 
@@ -46,7 +53,6 @@ function connectPort() {
     swPort = chrome.runtime.connect({ name: 'syncwatch-tab-' + Date.now() });
     swPort.onDisconnect.addListener(() => {
       swPort = null;
-      // Reconnect on disconnect (handles SW restart)
       setTimeout(connectPort, 1000);
     });
   } catch (e) {
@@ -57,86 +63,161 @@ function connectPort() {
 
 connectPort();
 
-chrome.runtime.onMessage.addListener((msg) => {
+// ─── Message handler ─────────────────────────────────────────────────────────
+
+chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
   if (msg.type === 'reset') {
-    role = null;
-    roomId = null;
-    video = null;
+    role = null; roomId = null; video = null;
+    listenersAttached = false;
+    sendResponse({ ok: true });
   }
 
   if (msg.type === 'remote-event' && role === 'receiver') {
+    console.log('[SyncWatch] Received remote-event:', msg.data.type);
     applyEvent(msg.data);
   }
 
   if (msg.type === 'sync-request' && role === 'controller') {
+    console.log('[SyncWatch] Sync request from receiver');
     respondSyncState();
   }
 
   if (msg.type === 'syncwatch-ping') {
-    // Respond to background script's rediscovery ping
-    // The promise resolution is the response itself
+    sendResponse({ ok: true, hasVideo: !!findVideo() });
+    return true; // async response
   }
 });
 
-// ─── Find the video element (handles late-loading SPAs) ───────────────────────
+// ─── Find the video element ──────────────────────────────────────────────────
 
 function findVideo() {
-  return document.querySelector('video');
+  // 1. Direct on page
+  let v = document.querySelector('video');
+  if (v) return v;
+
+  // 2. Same-origin iframes
+  try {
+    const iframes = document.querySelectorAll('iframe');
+    for (const iframe of iframes) {
+      try {
+        v = iframe.contentDocument?.querySelector('video');
+        if (v) return v;
+      } catch (e) {}
+    }
+  } catch (e) {}
+
+  // 3. Shadow DOM
+  try {
+    const els = document.querySelectorAll('*');
+    for (const el of els) {
+      if (el.shadowRoot) {
+        v = el.shadowRoot.querySelector('video');
+        if (v) return v;
+      }
+    }
+  } catch (e) {}
+
+  return null;
 }
 
 function waitForVideo(cb) {
   const v = findVideo();
   if (v) return cb(v);
+
+  let found = false;
   const obs = new MutationObserver(() => {
+    if (found) return;
     const v2 = findVideo();
     if (v2) {
+      found = true;
       obs.disconnect();
       cb(v2);
     }
   });
   obs.observe(document.documentElement, { childList: true, subtree: true });
+  setTimeout(() => {
+    if (!found) obs.disconnect();
+  }, 30000);
 }
 
-// ─── Controller: send events ──────────────────────────────────────────────────
+// ─── Controller: attach listeners to video element ───────────────────────────
 
 function attachVideoListeners() {
   if (role !== 'controller') return;
 
-  waitForVideo((v) => {
+  // Poll for video every 2s — handles SPA navigation, late-loading, etc.
+  if (pollTimer) clearInterval(pollTimer);
+  pollTimer = setInterval(() => {
+    const v = findVideo();
+    if (!v) return;
+
+    if (video === v) return; // same element, already attached
+
     video = v;
-    console.log('[SyncWatch] Video element found, listening…');
+    listenersAttached = true;
+    console.log('[SyncWatch] Video found! src=' + (v.currentSrc || '?') + ' ready=' + v.readyState + ' — attaching listeners');
 
-    v.addEventListener('play', () => {
-      if (isSyncing) return;
-      sendVideoEvent({ type: 'play', currentTime: v.currentTime });
-    });
+    v.addEventListener('play', onVideoPlay);
+    v.addEventListener('pause', onVideoPause);
+    v.addEventListener('seeked', onVideoSeek);
+    v.addEventListener('ratechange', onVideoRate);
+  }, 2000);
 
-    v.addEventListener('pause', () => {
-      if (isSyncing) return;
-      sendVideoEvent({ type: 'pause', currentTime: v.currentTime });
-    });
-
-    v.addEventListener('seeked', () => {
-      if (isSyncing) return;
-      sendVideoEvent({ type: 'seek', currentTime: v.currentTime });
-    });
+  // Also try immediately
+  waitForVideo((v) => {
+    if (video === v) return;
+    video = v;
+    listenersAttached = true;
+    console.log('[SyncWatch] Video found immediately! src=' + (v.currentSrc || '?') + ' — attaching listeners');
+    v.addEventListener('play', onVideoPlay);
+    v.addEventListener('pause', onVideoPause);
+    v.addEventListener('seeked', onVideoSeek);
+    v.addEventListener('ratechange', onVideoRate);
   });
+}
+
+function onVideoPlay() {
+  if (isSyncing || !video) return;
+  console.log('[SyncWatch] ▶ PLAY @ ' + video.currentTime.toFixed(2) + 's → sending');
+  sendVideoEvent({ type: 'play', currentTime: video.currentTime });
+}
+
+function onVideoPause() {
+  if (isSyncing || !video) return;
+  console.log('[SyncWatch] ⏸ PAUSE @ ' + video.currentTime.toFixed(2) + 's → sending');
+  sendVideoEvent({ type: 'pause', currentTime: video.currentTime });
+}
+
+function onVideoSeek() {
+  if (isSyncing || !video) return;
+  console.log('[SyncWatch] 🔍 SEEK @ ' + video.currentTime.toFixed(2) + 's → sending');
+  sendVideoEvent({ type: 'seek', currentTime: video.currentTime });
+}
+
+function onVideoRate() {
+  if (isSyncing || !video) return;
+  console.log('[SyncWatch] ⏩ RATE ' + video.playbackRate + 'x @ ' + video.currentTime.toFixed(2) + 's → sending');
+  sendVideoEvent({ type: 'rate', currentTime: video.currentTime, rate: video.playbackRate });
 }
 
 function sendVideoEvent(payload) {
-  chrome.runtime.sendMessage({ type: 'video-event', payload }).catch(() => {});
+  console.log('[SyncWatch] → sendMessage video-event:', payload.type);
+  chrome.runtime.sendMessage({ type: 'video-event', payload })
+    .then(() => console.log('[SyncWatch] ✓ background acknowledged'))
+    .catch(e => console.log('[SyncWatch] ✗ sendMessage FAILED:', e.message));
 }
 
 function respondSyncState() {
-  waitForVideo((v) => {
-    video = v;
-    chrome.runtime
-      .sendMessage({
-        type: 'sync-state',
-        payload: { type: 'sync-state', playing: !v.paused, currentTime: v.currentTime },
-      })
-      .catch(() => {});
-  });
+  if (!video) {
+    const v = findVideo();
+    if (v) video = v;
+  }
+  if (!video) return;
+  chrome.runtime.sendMessage({
+    type: 'sync-state',
+    payload: { type: 'sync-state', playing: !video.paused, currentTime: video.currentTime },
+  })
+    .catch(e => console.log('[SyncWatch] sync-state FAILED:', e.message));
 }
 
 // ─── Receiver: apply remote events ───────────────────────────────────────────
@@ -145,34 +226,25 @@ function applyEvent(data) {
   waitForVideo((v) => {
     video = v;
     isSyncing = true;
+    const THRESH = 2;
 
-    const SEEK_THRESHOLD = 2;
+    console.log('[SyncWatch] Applying:', data.type, '@', data.currentTime);
 
     if (data.type === 'play') {
-      if (Math.abs(v.currentTime - data.currentTime) > SEEK_THRESHOLD) {
-        v.currentTime = data.currentTime;
-      }
-      v.play().catch(() => {});
+      if (Math.abs(v.currentTime - data.currentTime) > THRESH) v.currentTime = data.currentTime;
+      v.play().catch(e => console.log('[SyncWatch] play() failed:', e.message));
     } else if (data.type === 'pause') {
-      if (Math.abs(v.currentTime - data.currentTime) > SEEK_THRESHOLD) {
-        v.currentTime = data.currentTime;
-      }
+      if (Math.abs(v.currentTime - data.currentTime) > THRESH) v.currentTime = data.currentTime;
       v.pause();
     } else if (data.type === 'seek') {
       v.currentTime = data.currentTime;
+    } else if (data.type === 'rate') {
+      if (data.rate) v.playbackRate = data.rate;
     } else if (data.type === 'sync-state') {
-      if (Math.abs(v.currentTime - data.currentTime) > SEEK_THRESHOLD) {
-        v.currentTime = data.currentTime;
-      }
-      if (data.playing) {
-        v.play().catch(() => {});
-      } else {
-        v.pause();
-      }
+      if (Math.abs(v.currentTime - data.currentTime) > THRESH) v.currentTime = data.currentTime;
+      if (data.playing) v.play().catch(() => {}); else v.pause();
     }
 
-    setTimeout(() => {
-      isSyncing = false;
-    }, 600);
+    setTimeout(() => { isSyncing = false; }, 600);
   });
 }

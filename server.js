@@ -1,5 +1,6 @@
 // SyncWatch — server.js
 // WebSocket relay + serves bookmarklet-setup.html at /
+// v3: added /health endpoint, rate event support, connection logging
 
 const { WebSocketServer } = require('ws');
 const http = require('http');
@@ -12,6 +13,15 @@ const PORT = process.env.PORT || 3000;
 const MIME = { '.html': 'text/html', '.css': 'text/css', '.js': 'application/javascript' };
 
 const httpServer = http.createServer((req, res) => {
+  const urlPath = req.url.split('?')[0];
+
+  // Health check endpoint for Render / uptime monitoring
+  if (urlPath === '/health') {
+    res.writeHead(200, { 'Content-Type': 'application/json' });
+    res.end(JSON.stringify({ status: 'ok', rooms: Object.keys(rooms).length, uptime: process.uptime() }));
+    return;
+  }
+
   const serve = (file) => {
     const ext = path.extname(file) || '.html';
     fs.readFile(file, (err, data) => {
@@ -20,8 +30,6 @@ const httpServer = http.createServer((req, res) => {
       res.end(data);
     });
   };
-
-  const urlPath = req.url.split('?')[0];
 
   if (urlPath === '/bookmarklet.js') {
     serve(path.join(__dirname, 'bookmarklet.js'));
@@ -94,6 +102,7 @@ wss.on('connection', (ws, req) => {
 
     if (ws.role !== 'controller') return;
 
+    // Broadcast all controller events (play, pause, seek, rate, sync-state) to receivers
     for (const client of rooms[currentRoom]) {
       if (client !== ws && client.readyState === 1) {
         client.send(JSON.stringify(data));
