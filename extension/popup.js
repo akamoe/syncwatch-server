@@ -15,6 +15,7 @@ const connText       = document.getElementById('connText');
 const connRoom       = document.getElementById('connRoom');
 const connClients    = document.getElementById('connClients');
 const actionRow      = document.getElementById('actionRow');
+const toggleRow      = document.getElementById('toggleRow'); // FIX: was missing, caused ReferenceError crashing renderConnection()
 const previousRoomsList = document.getElementById('previousRoomsList');
 const newRoomCard    = document.getElementById('newRoomCard');
 const newRoomHeader  = document.getElementById('newRoomHeader');
@@ -28,7 +29,10 @@ const toggleLabel    = document.getElementById('toggleLabel');
     if (cfg.serverUrl) serverUrlInput.value = cfg.serverUrl;
     if (cfg.roomId)    roomIdInput.value    = cfg.roomId;
     if (cfg.role)      roleSelect.value     = cfg.role;
-    syncToggle.checked = cfg.enabled === true;
+    // FIX: read 'enabled' from storage directly (background.js never stores it inside syncStatus)
+    const isEnabled = cfg.enabled === true;
+    syncToggle.checked = isEnabled;
+    toggleLabel.textContent = isEnabled ? 'Syncing' : 'Paused';
     if (cfg.syncStatus) renderConnection(cfg.syncStatus);
     renderPreviousRooms(cfg.previousRooms || [], cfg.roomId, cfg.serverUrl);
     
@@ -84,8 +88,10 @@ function renderConnection(status) {
 
   connPanel.style.display = 'block';
   connRoom.textContent = 'Room: ' + status.roomId;
-  toggleRow.style.display = 'flex';
-  toggleLabel.textContent = status.enabled === true ? 'Syncing' : 'Paused';
+  // FIX: toggleRow is now properly declared; safely show it
+  if (toggleRow) toggleRow.style.display = 'flex';
+  // FIX: 'enabled' is NOT stored inside syncStatus by background.js — read from the toggle directly
+  // (toggleLabel is already kept in sync by the storage.onChanged listener below)
 
   const state = status.state || (status.connected ? 'connected' : 'disconnected');
 

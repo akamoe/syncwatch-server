@@ -33,10 +33,10 @@ if(!S||!R){
 }
 try{ localStorage.setItem("sw",JSON.stringify({u:S,r:R})); }catch(e){}
 
-var w=null,reconT=0,openT=0,clients=0,playing=0,obs=null,pending=null;
+var w=null,reconT=0,openT=0,pingT=0,clients=0,playing=0,obs=null,pending=null;
 
 function setColor(hex){
-  b.style.cssText=b.style.cssText.replace(/%23[0-9a-fA-F]{6}/,"%23"+hex.replace("%23",""));
+  b.style.background='#'+hex.replace(/^#|^%23/,'');
 }
 function label(){
   if(!w||w.readyState===0)return "SyncWatch: Connecting...";
@@ -73,6 +73,8 @@ function withV(fn){
   if(!obs){
     obs=new MutationObserver(function(){ var v2=findV(); if(v2){ obs.disconnect(); obs=null; fn(v2); } });
     obs.observe(document.documentElement,{childList:true,subtree:true});
+    // Safety: disconnect after 60s to avoid permanent leak
+    setTimeout(function(){ if(obs){ obs.disconnect(); obs=null; } }, 60000);
   }
 }
 
@@ -104,8 +106,13 @@ function connect(){
     clearTimeout(openT); clearTimeout(reconT);
     w.send(JSON.stringify({type:"join",room:R,role:"receiver"}));
     b.textContent="Joined! Waiting for host...";
-    b.style.background="purple";
+    b.style.background="#7c3aed";
     setTimeout(paint,2000);
+    // FIX: ping every 25s so Safari iOS doesn't kill idle WebSocket after ~60s
+    clearInterval(pingT);
+    pingT=setInterval(function(){
+      if(w&&w.readyState===1)w.send(JSON.stringify({type:"ping",room:R}));
+    },25000);
   };
   w.onmessage=function(e){
     try{
@@ -115,8 +122,8 @@ function connect(){
     }catch(ex){}
   };
   w.onclose=function(e){
-    clearTimeout(openT);
-    if(e&&e.reason==="kicked"){ b.textContent="Disconnected"; b.style.background="red"; pulseStop(); if(window.__syncwatch)window.__syncwatch.destroy(); return; }
+    clearTimeout(openT); clearInterval(pingT); pingT=0;
+    if(e&&e.reason==="kicked"){ b.textContent="Disconnected"; b.style.background="#dc2626"; pulseStop(); if(window.__syncwatch)window.__syncwatch.destroy(); return; }
     paint(); reconT=setTimeout(connect,3000);
   };
   w.onerror=function(){ if(w)w.close(); };
@@ -124,7 +131,7 @@ function connect(){
 connect();
 
 window.__syncwatch={destroy:function(){
-  clearTimeout(reconT); clearTimeout(openT); clearInterval(_pulseT);
+  clearTimeout(reconT); clearTimeout(openT); clearInterval(_pulseT); clearInterval(pingT); pingT=0;
   if(w){ w.onclose=null; w.close(); }
   if(obs){ obs.disconnect(); obs=null; }
   var el=document.getElementById("__sw"); if(el)el.remove();

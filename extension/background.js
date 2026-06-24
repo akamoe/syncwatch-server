@@ -1,5 +1,6 @@
-// SyncWatch — background.js v3.1
+// SyncWatch — background.js v3.2
 // Bulletproof WebSocket relay with full diagnostic logging.
+// FIX: outgoing event queue so no events are lost during MV3 SW wakeup/reconnect.
 
 let ws = null;
 let role = null;
@@ -10,6 +11,10 @@ let reconnectTimer = null;
 let connectId = 0;
 let lastStatusState = 'disconnected';
 let lastClientCount = 0;
+
+// Events queued while WS is not yet OPEN — flushed once we get room-info back.
+const sendQueue = [];
+const MAX_QUEUE = 20;
 
 // ─── Service worker keepalive ─────────────────────────────────────────────────
 
@@ -157,6 +162,7 @@ function connect() {
     ws.send(JSON.stringify({ type: 'join', room: roomId, role }));
     updateStatus('connecting');
     rediscoverVideoTab();
+    // NOTE: do NOT flush sendQueue here — wait until room-info confirms we're in the room.
   };
 
   ws.onmessage = (event) => {
@@ -166,7 +172,12 @@ function connect() {
 
     if (data.type === 'room-info') {
       updateStatus('connected', data.count);
-      console.log('[SyncWatch BG] room-info: ' + data.count + ' clients');
+      console.log('[SyncWatch BG] room-info: ' + data.count + ' clients — flushing queue (' + sendQueue.length + ' events)');
+      // Flush any events that were queued while the WS was reconnecting.
+      while (sendQueue.length > 0) {
+        const queued = sendQueue.shift();
+        sendWsDirect(queued);
+      }
       return;
     }
     if (data.type === 'sync-request' && role === 'controller') {
@@ -202,12 +213,20 @@ function connect() {
 
 function sendWs(payload) {
   if (!ws || ws.readyState !== 1) {
-    console.log('[SyncWatch BG] ✗ sendWs FAILED: WS not ready (readyState=' + (ws ? ws.readyState : 'null') + ')');
+    // Queue the event so it is not silently dropped during MV3 SW wakeup/reconnect.
+    console.log('[SyncWatch BG] WS not ready — queuing event: ' + payload.type + ' (queue size: ' + (sendQueue.length + 1) + ')');
+    if (sendQueue.length < MAX_QUEUE) sendQueue.push(payload);
+    // Trigger reconnect if WS is gone.
+    if (!ws || ws.readyState > 1) connect();
     return false;
   }
+  return sendWsDirect(payload);
+}
+
+function sendWsDirect(payload) {
   try {
     ws.send(JSON.stringify(payload));
-    console.log('[SyncWatch BG] ✓ sent to WS');
+    console.log('[SyncWatch BG] ✓ sent to WS: ' + payload.type);
     return true;
   } catch (e) {
     console.error('[SyncWatch BG] ✗ sendWs error:', e.message);
@@ -263,20 +282,25 @@ function rediscoverVideoTab() {
   }
   console.log('[SyncWatch BG] rediscover: scanning all tabs...');
   chrome.tabs.query({}, (tabs) => {
-    let found = false;
-    for (const tab of tabs) {
-      if (found) break;
+    // FIX: prefer tabs that have a video element; stop as soon as we find one.
+    // Old code set found=true but still iterated all tabs (due to async .then ordering).
+    const promises = tabs.map(tab =>
       chrome.tabs.sendMessage(tab.id, { type: 'syncwatch-ping' })
-        .then((resp) => {
-          if (!found) {
-            found = true;
-            videoTabId = tab.id;
-            updateBadge(lastStatusState, lastClientCount);
-            console.log('[SyncWatch BG] Rediscovered tab ' + tab.id);
-          }
-        })
-        .catch(() => {});
-    }
+        .then(resp => ({ tabId: tab.id, hasVideo: !!resp?.hasVideo }))
+        .catch(() => null)
+    );
+    Promise.all(promises).then(results => {
+      if (videoTabId) return; // already found by another path
+      // Prefer a tab that has a video; fall back to any responder.
+      const withVideo = results.find(r => r?.hasVideo);
+      const anyTab   = results.find(r => r !== null);
+      const best = withVideo || anyTab;
+      if (best) {
+        videoTabId = best.tabId;
+        updateBadge(lastStatusState, lastClientCount);
+        console.log('[SyncWatch BG] Rediscovered tab ' + videoTabId + (withVideo ? ' (has video)' : ' (no video yet)'));
+      }
+    });
   });
 }
 

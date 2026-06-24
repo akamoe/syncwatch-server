@@ -1,9 +1,10 @@
-// SyncWatch — content.js v3.1
+// SyncWatch — content.js v3.2
 // Bulletproof: logs every step, handles SPA navigation, retries on failure.
 
 let role = null;
 let roomId = null;
 let serverUrl = null;
+let enabled = true; // mirrors chrome.storage 'enabled' flag
 let isSyncing = false;
 let video = null;
 let listenersAttached = false;
@@ -25,8 +26,9 @@ function loadConfig(cfg) {
   role = newRole;
   roomId = newRoom;
   serverUrl = newUrl;
+  enabled = cfg.enabled !== false; // default true if unset
 
-  console.log('[SyncWatch] Config loaded: role=' + role + ' room=' + roomId);
+  console.log('[SyncWatch] Config loaded: role=' + role + ' room=' + roomId + ' enabled=' + enabled);
   chrome.runtime.sendMessage({ type: 'register-tab' })
     .catch(e => console.log('[SyncWatch] register-tab failed:', e.message));
 
@@ -35,11 +37,11 @@ function loadConfig(cfg) {
   }
 }
 
-chrome.storage.local.get(['role', 'roomId', 'serverUrl'], loadConfig);
+chrome.storage.local.get(['role', 'roomId', 'serverUrl', 'enabled'], loadConfig);
 
 chrome.storage.onChanged.addListener((changes) => {
-  if (changes.role || changes.roomId || changes.serverUrl) {
-    chrome.storage.local.get(['role', 'roomId', 'serverUrl'], loadConfig);
+  if (changes.role || changes.roomId || changes.serverUrl || changes.enabled) {
+    chrome.storage.local.get(['role', 'roomId', 'serverUrl', 'enabled'], loadConfig);
   }
 });
 
@@ -153,6 +155,14 @@ function attachVideoListeners() {
 
     if (video === v) return; // same element, already attached
 
+    // Remove old listeners from previous element (guards against SPA element reuse)
+    if (video && video !== v) {
+      video.removeEventListener('play', onVideoPlay);
+      video.removeEventListener('pause', onVideoPause);
+      video.removeEventListener('seeked', onVideoSeek);
+      video.removeEventListener('ratechange', onVideoRate);
+    }
+
     video = v;
     listenersAttached = true;
     console.log('[SyncWatch] Video found! src=' + (v.currentSrc || '?') + ' ready=' + v.readyState + ' — attaching listeners');
@@ -166,6 +176,12 @@ function attachVideoListeners() {
   // Also try immediately
   waitForVideo((v) => {
     if (video === v) return;
+    if (video) {
+      video.removeEventListener('play', onVideoPlay);
+      video.removeEventListener('pause', onVideoPause);
+      video.removeEventListener('seeked', onVideoSeek);
+      video.removeEventListener('ratechange', onVideoRate);
+    }
     video = v;
     listenersAttached = true;
     console.log('[SyncWatch] Video found immediately! src=' + (v.currentSrc || '?') + ' — attaching listeners');
@@ -201,6 +217,10 @@ function onVideoRate() {
 }
 
 function sendVideoEvent(payload) {
+  if (!enabled) {
+    console.log('[SyncWatch] Sync paused — not sending: ' + payload.type);
+    return;
+  }
   console.log('[SyncWatch] → sendMessage video-event:', payload.type);
   chrome.runtime.sendMessage({ type: 'video-event', payload })
     .then(() => console.log('[SyncWatch] ✓ background acknowledged'))
