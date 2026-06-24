@@ -10,6 +10,7 @@ let reconnectTimer = null;
 let connectId = 0;
 let lastStatusState = 'disconnected';
 let lastClientCount = 0;
+let enabled = false;
 
 // ─── Service worker keepalive ─────────────────────────────────────────────────
 // MV3 service workers die after ~30s of inactivity. chrome.alarms keeps us alive.
@@ -25,7 +26,7 @@ chrome.alarms.onAlarm.addListener((alarm) => {
 
   if (!serverUrl || !roomId) {
     // SW was killed and restarted — reload config from storage
-    chrome.storage.local.get(['role', 'roomId', 'serverUrl'], loadConfig);
+    chrome.storage.local.get(['role', 'roomId', 'serverUrl', 'enabled'], loadConfig);
     return;
   }
 
@@ -57,20 +58,26 @@ function loadConfig(cfg) {
   disconnect();
   if (!cfg.role || !cfg.roomId || !cfg.serverUrl) {
     role = null; roomId = null; serverUrl = null;
-    updateStatus('disconnected');
+    updateStatus('disabled');
     return;
   }
   role      = cfg.role;
   roomId    = cfg.roomId;
   serverUrl = cfg.serverUrl;
+  enabled   = cfg.enabled !== false; // FIX: default to enabled (was === true, which blocked when missing)
+  console.log('[SyncWatch BG] Config loaded: role=' + role + ' room=' + roomId + ' url=' + serverUrl + ' enabled=' + enabled);
+  if (!enabled) {
+    updateStatus('disabled');
+    return;
+  }
   connect();
 }
 
-chrome.storage.local.get(['role', 'roomId', 'serverUrl'], loadConfig);
+chrome.storage.local.get(['role', 'roomId', 'serverUrl', 'enabled'], loadConfig);
 
 chrome.storage.onChanged.addListener((changes) => {
-  if (changes.role || changes.roomId || changes.serverUrl) {
-    chrome.storage.local.get(['role', 'roomId', 'serverUrl'], loadConfig);
+  if (changes.role || changes.roomId || changes.serverUrl || changes.enabled) {
+    chrome.storage.local.get(['role', 'roomId', 'serverUrl', 'enabled'], loadConfig);
   }
   if (changes.kickTrigger?.newValue) {
     sendKick();
@@ -88,26 +95,29 @@ chrome.runtime.onMessage.addListener((msg, sender) => {
 
   if (msg.type === 'register-tab') {
     if (tabId) { videoTabId = tabId; updateBadge(lastStatusState, lastClientCount); }
+    console.log('[SyncWatch BG] Tab registered: ' + tabId);
     return;
   }
   if (msg.type === 'video-event') {
     if (tabId) videoTabId = tabId;
+    console.log('[SyncWatch BG] → Relaying video-event to WS: ' + msg.payload.type + ' @ ' + msg.payload.currentTime + 's');
     sendWs({ ...msg.payload, room: roomId });
     return;
   }
   if (msg.type === 'sync-state') {
     if (tabId) videoTabId = tabId;
+    console.log('[SyncWatch BG] → Relaying sync-state to WS');
     sendWs({ ...msg.payload, room: roomId });
     return;
   }
   if (msg.type === 'kick')  { sendKick();    return; }
   if (msg.type === 'reset') { handleReset(); return; }
+  if (msg.type === 'log-event') {
+    handleLogEvent(msg.payload);
+    return;
+  }
 
-  // FIX: respond to ping so content.js rediscovery works
-  // Returning true tells Chrome we'll respond asynchronously — but here we just
-  // want to acknowledge. The response value doesn't matter; what matters is that
-  // sendMessage() in rediscoverVideoTab() doesn't throw "no listener" error.
-  if (msg.type === 'syncwatch-ping') return; // implicit undefined response is fine
+  if (msg.type === 'syncwatch-ping') return;
 });
 
 // ─── WebSocket connection ─────────────────────────────────────────────────────
@@ -145,15 +155,17 @@ function connect() {
     try { data = JSON.parse(event.data); } catch { return; }
 
     if (data.type === 'room-info') {
-      // FIX: only call 'connected' when room-info arrives — this is the authoritative signal
       updateStatus('connected', data.count);
+      console.log('[SyncWatch BG] room-info: ' + data.count + ' clients in room "' + roomId + '"');
       return;
     }
     if (data.type === 'sync-request' && role === 'controller') {
+      console.log('[SyncWatch BG] sync-request received from receiver');
       requestSyncState();
       return;
     }
     if (role === 'receiver') {
+      console.log('[SyncWatch BG] ← Received from server: ' + data.type + ' — forwarding to video tab ' + videoTabId);
       forwardToVideoTab({ type: 'remote-event', data });
     }
   };
@@ -182,8 +194,8 @@ function sendKick()   { sendWs({ type: 'kick', room: roomId }); }
 
 function handleReset() {
   disconnect();
-  role = null; roomId = null; serverUrl = null; videoTabId = null;
-  chrome.storage.local.remove(['role', 'roomId', 'serverUrl', 'syncStatus']);
+  role = null; roomId = null; serverUrl = null; videoTabId = null; enabled = false;
+  chrome.storage.local.remove(['role', 'roomId', 'serverUrl', 'syncStatus', 'enabled']);
   updateStatus('disconnected');
 }
 
@@ -228,7 +240,7 @@ function updateStatus(state, clientCount) {
   lastStatusState  = state;
   lastClientCount  = clientCount || 0;
   chrome.storage.local.set({
-    syncStatus: { state, connected: state === 'connected', roomId, role, clientCount: lastClientCount }
+    syncStatus: { state, connected: state === 'connected', roomId, role, clientCount: lastClientCount, enabled }
   });
   updateBadge(state, lastClientCount);
 }
@@ -247,4 +259,73 @@ function updateBadge(state, clientCount) {
   const colorOpts = { color };
   if (videoTabId) colorOpts.tabId = videoTabId;
   chrome.action.setBadgeBackgroundColor(colorOpts);
+}
+
+function handleLogEvent(payload) {
+  const targetRoomId = payload.roomId;
+  const targetServerUrl = payload.serverUrl;
+  if (!targetRoomId || !targetServerUrl) return;
+
+  chrome.storage.local.get(['previousRooms'], (res) => {
+    const rooms = res.previousRooms || [];
+    let roomIndex = rooms.findIndex(r => r.roomId === targetRoomId && r.serverUrl === targetServerUrl);
+    
+    let room;
+    if (roomIndex !== -1) {
+      room = rooms[roomIndex];
+    } else {
+      room = {
+        roomId: targetRoomId,
+        serverUrl: targetServerUrl,
+        role: 'controller',
+        history: []
+      };
+      rooms.unshift(room);
+      roomIndex = 0;
+    }
+
+    if (!room.history) room.history = [];
+
+    let movieIndex = room.history.findIndex(m => m.url === payload.url);
+    let movie;
+
+    if (movieIndex !== -1) {
+      movie = room.history.splice(movieIndex, 1)[0];
+    } else {
+      movie = {
+        url: payload.url,
+        title: payload.title,
+        events: []
+      };
+    }
+
+    if (payload.title && payload.title !== movie.title) {
+      movie.title = payload.title;
+    }
+
+    movie.lastActive = Date.now();
+
+    const lastEvent = movie.events[movie.events.length - 1];
+    if (lastEvent && lastEvent.type === payload.type && Math.abs(lastEvent.time - payload.currentTime) < 1.0) {
+      // Skip duplicate
+    } else {
+      movie.events.push({
+        type: payload.type,
+        time: payload.currentTime,
+        timestamp: Date.now()
+      });
+
+      if (movie.events.length > 20) {
+        movie.events.shift();
+      }
+    }
+
+    room.history.unshift(movie);
+
+    if (room.history.length > 5) {
+      room.history.pop();
+    }
+
+    chrome.storage.local.set({ previousRooms: rooms });
+  });
 }

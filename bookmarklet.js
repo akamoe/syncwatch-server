@@ -79,11 +79,13 @@ function withV(fn){
 function applyEvent(d,v){
   var th=2;
   if(d.type==="play"||(d.type==="sync-state"&&d.playing)){
-    playing=1; if(Math.abs(v.currentTime-d.currentTime)>th)v.currentTime=d.currentTime; v.play().catch(function(){});
+    playing=1; if(Math.abs(v.currentTime-d.currentTime)>th)v.currentTime=d.currentTime; v.play().catch(function(){}); console.log("[SyncWatch] play @",d.currentTime);
   } else if(d.type==="pause"||(d.type==="sync-state"&&!d.playing)){
-    playing=0; if(Math.abs(v.currentTime-d.currentTime)>th)v.currentTime=d.currentTime; v.pause();
+    playing=0; if(Math.abs(v.currentTime-d.currentTime)>th)v.currentTime=d.currentTime; v.pause(); console.log("[SyncWatch] pause @",d.currentTime);
   } else if(d.type==="seek"){
-    v.currentTime=d.currentTime; playing=v.paused?0:1;
+    v.currentTime=d.currentTime; playing=v.paused?0:1; console.log("[SyncWatch] seek @",d.currentTime);
+  } else if(d.type==="rate"){
+    if(d.rate)v.playbackRate=d.rate; console.log("[SyncWatch] rate",d.rate+"x");
   }
   paint();
 }
