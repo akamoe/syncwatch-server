@@ -177,9 +177,9 @@ function encodeBookmarkletCode(code) {
   // Step 2: standard URI encoding — handles ALL dangerous chars including
   // # (fragment), % (double-encode), \ (escape issues), & (query string)
   return encodeURIComponent(code)
-    // Step 3: decode chars that are safe in javascript: URL context
-    // Keeping these unencoded makes the URL readable but doesn't break anything
-    .replace(/%20/g, ' ')
+    // Step 3: decode chars that are safe in javascript: URL context.
+    // IMPORTANT: do NOT decode %20 (space) — Safari iOS treats javascript: URLs
+    // with literal spaces as navigation, silently doing nothing.
     .replace(/%21/g, '!')
     .replace(/%27/g, "'")
     .replace(/%28/g, '(')
@@ -190,6 +190,6 @@ function encodeBookmarkletCode(code) {
     .replace(/%7D/g, '}')
     .replace(/%3D/g, '=')
     .replace(/%3A/g, ':')
-    // DO NOT decode: %23 (#), %25 (%), %22 ("), %5C (\), %26 (&), %3F (?)
+    // DO NOT decode: %20 (space), %23 (#), %25 (%), %22 ("), %5C (\), %26 (&), %3F (?)
     ;
 }
