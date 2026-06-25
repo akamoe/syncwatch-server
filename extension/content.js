@@ -5,12 +5,14 @@ let role = null;
 let roomId = null;
 let isSyncing = false;
 let video = null;
+let listenersAttached = false;
 
 // ─── Bootstrap ───────────────────────────────────────────────────────────────
 
 function loadConfig(cfg) {
   role = cfg.role || null;
   roomId = cfg.roomId || null;
+  listenersAttached = false; // reset so new config can re-attach
 
   if (!role || !roomId || !cfg.serverUrl) {
     role = null;
@@ -78,10 +80,20 @@ chrome.runtime.onMessage.addListener((msg) => {
   }
 });
 
-// ─── Find the video element (handles late-loading SPAs) ───────────────────────
+// ─── Find the video element (largest visible one, handles iframes via all_frames) ─
 
 function findVideo() {
-  return document.querySelector('video');
+  let best = null;
+  let bestArea = 0;
+  for (const v of document.querySelectorAll('video')) {
+    const r = v.getBoundingClientRect();
+    const area = r.width * r.height;
+    if (area > bestArea && r.width > 100 && r.height > 100) {
+      best = v;
+      bestArea = area;
+    }
+  }
+  return best;
 }
 
 function waitForVideo(cb) {
@@ -101,9 +113,11 @@ function waitForVideo(cb) {
 
 function attachVideoListeners() {
   if (role !== 'controller') return;
+  if (listenersAttached) return; // guard against double-attach in multi-frame scenarios
 
   waitForVideo((v) => {
     video = v;
+    listenersAttached = true;
     console.log('[SyncWatch] Video element found, listening…');
 
     v.addEventListener('play', () => {
