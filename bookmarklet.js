@@ -82,7 +82,7 @@ function showTapToPlay(v,targetTime){
   if(tapOverlay)return;
   tapOverlay=document.createElement("div");
   tapOverlay.style.cssText="position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:2147483646;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;cursor:pointer;-webkit-user-select:none;user-select:none;";
-  tapOverlay.innerHTML="<div style=\"background:%237c3aed;color:%23fff;padding:20px 40px;border-radius:16px;font:bold 20px/1.5 -apple-system,BlinkMacSystemFont,sans-serif;text-align:center;box-shadow:0 4px 24px rgba(0,0,0,.6);\">&#9654; اضغط هنا للتشغيل<br><span style=\"font-size:14px;opacity:.8;\">Tap to Play</span></div>";
+  tapOverlay.innerHTML='<div style="background:%237c3aed;color:%23fff;padding:20px 40px;border-radius:16px;font:bold 20px/1.5 -apple-system,BlinkMacSystemFont,sans-serif;text-align:center;box-shadow:0 4px 24px rgba(0,0,0,.6);">&#9654; Tap to Play</div>';
   tapOverlay.onclick=function(){
     tapOverlay.remove(); tapOverlay=null;
     try{ if(typeof targetTime==="number"&&Math.abs(v.currentTime-targetTime)>2)v.currentTime=targetTime; }catch(e){}
