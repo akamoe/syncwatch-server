@@ -33,7 +33,7 @@ if(!S||!R){
 }
 try{ localStorage.setItem("sw",JSON.stringify({u:S,r:R})); }catch(e){}
 
-var w=null,reconT=0,openT=0,clients=0,playing=0,obs=null,pending=null;
+var w=null,reconT=0,openT=0,clients=0,playing=0,obs=null,pending=null,isSyncing=false,tapOverlay=null;
 
 function setColor(hex){
   b.style.cssText=b.style.cssText.replace(/%23[0-9a-fA-F]{6}/,"%23"+hex.replace("%23",""));
@@ -62,10 +62,13 @@ b.onclick=function(){
 
 function findV(){
   var best=null,area=0;
-  function check(list){ for(var i=0;i<list.length;i++){ var v=list[i],r=v.getBoundingClientRect(),a=r.width*r.height; if(a>area&&r.width>50&&r.height>50){best=v;area=a;} } }
-  check(document.querySelectorAll("video"));
-  var els=document.querySelectorAll("*");
-  for(var j=0;j<els.length;j++){ var sr=els[j].shadowRoot; if(sr)check(sr.querySelectorAll("video")); }
+  function check(root){
+    var list=root.querySelectorAll("video");
+    for(var i=0;i<list.length;i++){ var v=list[i],r=v.getBoundingClientRect(),a=r.width*r.height; if(a>area&&r.width>50&&r.height>50){best=v;area=a;} }
+    root.querySelectorAll("iframe").forEach(function(f){ try{ check(f.contentDocument); }catch(e){} });
+    root.querySelectorAll("*").forEach(function(el){ if(el.shadowRoot)check(el.shadowRoot); });
+  }
+  check(document);
   return best;
 }
 function withV(fn){
@@ -75,21 +78,42 @@ function withV(fn){
     obs.observe(document.documentElement,{childList:true,subtree:true});
   }
 }
-
+function showTapToPlay(v,targetTime){
+  if(tapOverlay)return;
+  tapOverlay=document.createElement("div");
+  tapOverlay.style.cssText="position:fixed;top:0;left:0;width:100vw;height:100vh;z-index:2147483646;background:rgba(0,0,0,.65);display:flex;align-items:center;justify-content:center;cursor:pointer;-webkit-user-select:none;user-select:none;";
+  tapOverlay.innerHTML="<div style=\"background:%237c3aed;color:%23fff;padding:20px 40px;border-radius:16px;font:bold 20px/1.5 -apple-system,BlinkMacSystemFont,sans-serif;text-align:center;box-shadow:0 4px 24px rgba(0,0,0,.6);\">&#9654; اضغط هنا للتشغيل<br><span style=\"font-size:14px;opacity:.8;\">Tap to Play</span></div>";
+  tapOverlay.onclick=function(){
+    tapOverlay.remove(); tapOverlay=null;
+    try{ if(typeof targetTime==="number"&&Math.abs(v.currentTime-targetTime)>2)v.currentTime=targetTime; }catch(e){}
+    v.play().catch(function(){});
+  };
+  (document.body||document.documentElement).appendChild(tapOverlay);
+}
 function applyEvent(d,v){
+  isSyncing=true;
   var th=2;
   if(d.type==="play"||(d.type==="sync-state"&&d.playing)){
-    playing=1; if(Math.abs(v.currentTime-d.currentTime)>th)v.currentTime=d.currentTime; v.play().catch(function(){});
+    playing=1;
+    try{ if(typeof d.currentTime==="number"&&Math.abs(v.currentTime-d.currentTime)>th)v.currentTime=d.currentTime; }catch(e){}
+    v.play().catch(function(){ showTapToPlay(v,d.currentTime); });
   } else if(d.type==="pause"||(d.type==="sync-state"&&!d.playing)){
-    playing=0; if(Math.abs(v.currentTime-d.currentTime)>th)v.currentTime=d.currentTime; v.pause();
+    playing=0;
+    try{ if(typeof d.currentTime==="number"&&Math.abs(v.currentTime-d.currentTime)>th)v.currentTime=d.currentTime; }catch(e){}
+    try{ v.pause(); }catch(e){}
   } else if(d.type==="seek"){
-    v.currentTime=d.currentTime; playing=v.paused?0:1;
+    try{ v.currentTime=d.currentTime; }catch(e){}
+    playing=v.paused?0:1;
   }
   paint();
+  setTimeout(function(){ isSyncing=false; },600);
 }
 function onEvent(d){
-  var v=findV(); if(v){ applyEvent(d,v); pending=null; return; }
-  pending=d; withV(function(v2){ if(pending){ applyEvent(pending,v2); pending=null; } });
+  if(isSyncing)return;
+  var v=findV();
+  if(v){ applyEvent(d,v); pending=null; return; }
+  pending=d;
+  withV(function(v2){ if(pending){ applyEvent(pending,v2); pending=null; } });
 }
 
 function connect(){
@@ -125,6 +149,7 @@ window.__syncwatch={destroy:function(){
   clearTimeout(reconT); clearTimeout(openT); clearInterval(_pulseT);
   if(w){ w.onclose=null; w.close(); }
   if(obs){ obs.disconnect(); obs=null; }
+  if(tapOverlay){ tapOverlay.remove(); tapOverlay=null; }
   var el=document.getElementById("__sw"); if(el)el.remove();
   delete window.__syncwatch;
 }};
