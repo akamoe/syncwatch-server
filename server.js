@@ -49,6 +49,10 @@ const rooms = {};
 wss.on('connection', (ws, req) => {
   let currentRoom = null;
 
+  // Heartbeat: mark as alive on each pong
+  ws._isAlive = true;
+  ws.on('pong', () => { ws._isAlive = true; });
+
   console.log(`[+] New connection from ${req.socket.remoteAddress}`);
 
   function broadcastRoomInfo() {
@@ -103,14 +107,16 @@ wss.on('connection', (ws, req) => {
     if (ws.role !== 'controller') return;
 
     // Broadcast all controller events (play, pause, seek, rate, sync-state) to receivers
+    let sent = 0;
     for (const client of rooms[currentRoom]) {
       if (client !== ws && client.readyState === 1) {
         client.send(JSON.stringify(data));
+        sent++;
       }
     }
 
     const { type, currentTime } = data;
-    console.log(`[→] room="${currentRoom}" ${type} @ ${Number(currentTime).toFixed(2)}s`);
+    console.log(`[→] room="${currentRoom}" ${type} @ ${Number(currentTime).toFixed(2)}s → sent to ${sent} receiver(s)`);
   });
 
   ws.on('close', () => {
@@ -130,3 +136,22 @@ wss.on('connection', (ws, req) => {
 httpServer.listen(PORT, () => {
   console.log(`🎬 SyncWatch running on port ${PORT}`);
 });
+
+// ── Heartbeat: detect dead connections every 30s ──────────────────────────────
+// Safari iOS can silently drop WebSockets without sending a close frame.
+// Without this, the server thinks the receiver is still connected (stale "2 clients" badge)
+// but events never reach anyone. This ping/pong check forces cleanup.
+setInterval(() => {
+  wss.clients.forEach((ws) => {
+    if (ws.readyState !== 1) return;
+    if (ws._isAlive === false) {
+      console.log('[heartbeat] terminating dead connection');
+      ws.terminate();
+      return;
+    }
+    ws._isAlive = false;
+    ws.ping(() => {});
+  });
+}, 30000);
+
+

@@ -1,4 +1,4 @@
-// SyncWatch — bookmarklet builder (loaded by join.html)
+// SyncWatch — bookmarklet builder (loaded by join.html and bookmarklet-setup.html)
 
 function buildBookmarklet() {
   return `(function(){
@@ -35,9 +35,6 @@ try{ localStorage.setItem("sw",JSON.stringify({u:S,r:R})); }catch(e){}
 
 var w=null,reconT=0,openT=0,pingT=0,clients=0,playing=0,obs=null,pending=null;
 
-function setColor(hex){
-  b.style.background='#'+hex.replace(/^#|^%23/,'');
-}
 function label(){
   if(!w||w.readyState===0)return "SyncWatch: Connecting...";
   if(w.readyState!==1)return "Reconnecting...";
@@ -64,8 +61,21 @@ function findV(){
   var best=null,area=0;
   function check(list){ for(var i=0;i<list.length;i++){ var v=list[i],r=v.getBoundingClientRect(),a=r.width*r.height; if(a>area&&r.width>50&&r.height>50){best=v;area=a;} } }
   check(document.querySelectorAll("video"));
+  // Shadow DOM
   var els=document.querySelectorAll("*");
   for(var j=0;j<els.length;j++){ var sr=els[j].shadowRoot; if(sr)check(sr.querySelectorAll("video")); }
+  // Same-origin iframes
+  try{
+    var ifr=document.querySelectorAll("iframe");
+    for(var k=0;k<ifr.length;k++){
+      try{
+        var idoc=ifr[k].contentDocument;
+        if(idoc)check(idoc.querySelectorAll("video"));
+        var iels=idoc?idoc.querySelectorAll("*"):[];
+        for(var m=0;m<iels.length;m++){ var isr=iels[m].shadowRoot; if(isr)check(isr.querySelectorAll("video")); }
+      }catch(e){}
+    }
+  }catch(e){}
   return best;
 }
 function withV(fn){
@@ -73,27 +83,44 @@ function withV(fn){
   if(!obs){
     obs=new MutationObserver(function(){ var v2=findV(); if(v2){ obs.disconnect(); obs=null; fn(v2); } });
     obs.observe(document.documentElement,{childList:true,subtree:true});
-    // Safety: disconnect after 60s to avoid permanent leak
     setTimeout(function(){ if(obs){ obs.disconnect(); obs=null; } }, 60000);
   }
 }
 
 function applyEvent(d,v){
   var th=2;
+  console.log("[SyncWatch] applyEvent:",d.type,"@",d.currentTime,"video found:",!!v);
   if(d.type==="play"||(d.type==="sync-state"&&d.playing)){
-    playing=1; if(Math.abs(v.currentTime-d.currentTime)>th)v.currentTime=d.currentTime; v.play().catch(function(){}); console.log("[SyncWatch] play @",d.currentTime);
+    playing=1;
+    if(Math.abs(v.currentTime-d.currentTime)>th)v.currentTime=d.currentTime;
+    v.play().then(function(){
+      console.log("[SyncWatch] play() succeeded @",v.currentTime);
+    }).catch(function(err){
+      console.warn("[SyncWatch] play() FAILED:",err.message||err);
+      b.textContent="Play blocked - tap video first";
+      setTimeout(paint,3000);
+    });
   } else if(d.type==="pause"||(d.type==="sync-state"&&!d.playing)){
-    playing=0; if(Math.abs(v.currentTime-d.currentTime)>th)v.currentTime=d.currentTime; v.pause(); console.log("[SyncWatch] pause @",d.currentTime);
+    playing=0;
+    if(Math.abs(v.currentTime-d.currentTime)>th)v.currentTime=d.currentTime;
+    v.pause();
+    console.log("[SyncWatch] pause @",d.currentTime);
   } else if(d.type==="seek"){
-    v.currentTime=d.currentTime; playing=v.paused?0:1; console.log("[SyncWatch] seek @",d.currentTime);
+    v.currentTime=d.currentTime; playing=v.paused?0:1;
+    console.log("[SyncWatch] seek @",d.currentTime);
   } else if(d.type==="rate"){
-    if(d.rate)v.playbackRate=d.rate; console.log("[SyncWatch] rate",d.rate+"x");
+    if(d.rate)v.playbackRate=d.rate;
+    console.log("[SyncWatch] rate",d.rate+"x");
   }
   paint();
 }
 function onEvent(d){
-  var v=findV(); if(v){ applyEvent(d,v); pending=null; return; }
-  pending=d; withV(function(v2){ if(pending){ applyEvent(pending,v2); pending=null; } });
+  console.log("[SyncWatch] WS event received:",d.type);
+  var v=findV();
+  if(v){ applyEvent(d,v); pending=null; return; }
+  console.log("[SyncWatch] no video found yet — queuing event");
+  pending=d;
+  withV(function(v2){ if(pending){ applyEvent(pending,v2); pending=null; } });
 }
 
 function connect(){
@@ -108,25 +135,26 @@ function connect(){
     b.textContent="Joined! Waiting for host...";
     b.style.background="#7c3aed";
     setTimeout(paint,2000);
-    // FIX: ping every 25s so Safari iOS doesn't kill idle WebSocket after ~60s
+    // Ping every 15s — iOS Safari kills idle WebSockets after ~30s in background
     clearInterval(pingT);
     pingT=setInterval(function(){
       if(w&&w.readyState===1)w.send(JSON.stringify({type:"ping",room:R}));
-    },25000);
+    },15000);
   };
   w.onmessage=function(e){
     try{
       var d=JSON.parse(e.data);
-      if(d.type==="room-info"){ clients=d.count; paint(); return; }
+      if(d.type==="room-info"){ clients=d.count; console.log("[SyncWatch] room-info:",clients,"clients"); paint(); return; }
       onEvent(d);
-    }catch(ex){}
+    }catch(ex){ console.warn("[SyncWatch] parse error:",ex.message); }
   };
   w.onclose=function(e){
     clearTimeout(openT); clearInterval(pingT); pingT=0;
     if(e&&e.reason==="kicked"){ b.textContent="Disconnected"; b.style.background="#dc2626"; pulseStop(); if(window.__syncwatch)window.__syncwatch.destroy(); return; }
+    console.log("[SyncWatch] WS closed, reconnecting in 3s");
     paint(); reconT=setTimeout(connect,3000);
   };
-  w.onerror=function(){ if(w)w.close(); };
+  w.onerror=function(err){ console.warn("[SyncWatch] WS error"); if(w)w.close(); };
 }
 connect();
 

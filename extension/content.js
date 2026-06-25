@@ -72,21 +72,24 @@ chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
     role = null; roomId = null; video = null;
     listenersAttached = false;
     sendResponse({ ok: true });
+    return true;
   }
 
   if (msg.type === 'remote-event' && role === 'receiver') {
-    console.log('[SyncWatch] Received remote-event:', msg.data.type);
+    console.log('[SyncWatch] Received remote-event:', msg.data.type, '@', msg.data.currentTime, 's');
     applyEvent(msg.data);
+    return true;
   }
 
   if (msg.type === 'sync-request' && role === 'controller') {
     console.log('[SyncWatch] Sync request from receiver');
     respondSyncState();
+    return true;
   }
 
   if (msg.type === 'syncwatch-ping') {
     sendResponse({ ok: true, hasVideo: !!findVideo() });
-    return true; // async response
+    return true;
   }
 });
 
@@ -243,12 +246,13 @@ function respondSyncState() {
 // ─── Receiver: apply remote events ───────────────────────────────────────────
 
 function applyEvent(data) {
+  console.log('[SyncWatch] applyEvent called:', data.type, '@', data.currentTime, 's');
   waitForVideo((v) => {
     video = v;
     isSyncing = true;
     const THRESH = 2;
 
-    console.log('[SyncWatch] Applying:', data.type, '@', data.currentTime);
+    console.log('[SyncWatch] Applying:', data.type, '@', data.currentTime, 'to video @', v.currentTime);
 
     if (data.type === 'play') {
       if (Math.abs(v.currentTime - data.currentTime) > THRESH) v.currentTime = data.currentTime;

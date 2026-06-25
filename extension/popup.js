@@ -432,7 +432,8 @@ async function connectToRoom(room) {
     // Reordering caused rooms to shuffle positions so each room's "Recently
     // Watched" history appeared to belong to a different card.
     // The onChanged listener will re-render with the correct active room highlighted.
-    await chrome.storage.local.set({ serverUrl, roomId, role });
+    // FIX: also set enabled=true so content.js activates immediately
+    await chrome.storage.local.set({ serverUrl, roomId, role, enabled: true });
 
     setStatus('✓ Connected!', 'ok');
 
